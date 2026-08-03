@@ -1,0 +1,127 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "X Developer Platform",
+  "theme": "luma",
+  "colors": {
+    "primary": "#7c7c7c",
+    "light": "#0f0f0f",
+    "dark": "#ffffff"
+  },
+  "favicon": "https://media.brand.dev/be240b00-7d23-42e9-b22d-67e481f8a45f.png",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Docs",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "getting-started/access-levels",
+              "getting-started/developer-portal"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "authentication/overview",
+              "authentication/oauth2",
+              "authentication/oauth1",
+              "authentication/app-only"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/data-objects",
+              "concepts/fields-expansions",
+              "concepts/rate-limits",
+              "concepts/pagination"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/search-tweets",
+              "guides/post-tweets",
+              "guides/manage-users",
+              "guides/streaming",
+              "guides/webhooks"
+            ]
+          },
+          {
+            "group": "Tools & SDKs",
+            "pages": [
+              "tools/sdks",
+              "tools/postman",
+              "tools/sandbox"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Tweets",
+            "pages": [
+              "api-reference/tweets/lookup",
+              "api-reference/tweets/search",
+              "api-reference/tweets/timelines",
+              "api-reference/tweets/manage",
+              "api-reference/tweets/counts"
+            ]
+          },
+          {
+            "group": "Users & Follows",
+            "pages": [
+              "api-reference/users/lookup",
+              "api-reference/users/follows",
+              "api-reference/users/blocks-mutes"
+            ]
+          },
+          {
+            "group": "Spaces & Lists",
+            "pages": [
+              "api-reference/spaces/lookup",
+              "api-reference/lists/manage"
+            ]
+          },
+          {
+            "group": "Direct Messages",
+            "pages": [
+              "api-reference/dm/lookup",
+              "api-reference/dm/manage"
+            ]
+          },
+          {
+            "group": "Streams",
+            "pages": [
+              "api-reference/streams/filtered-stream",
+              "api-reference/streams/sampled-stream"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "https://developer.x.com/en/support"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Developer Portal",
+      "href": "https://developer.x.com"
+    }
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/XDevelopers"
+    }
+  }
+}

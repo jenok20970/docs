@@ -1,0 +1,208 @@
+---
+title: "Using Fields and Expansions to Shape API Responses"
+sidebarTitle: "Fields & Expansions"
+description: "Learn how to use the fields and expansions parameters in X API v2 to retrieve exactly the data you need in a single efficient request."
+---
+
+By default, the X API v2 returns only a minimal set of fields for every object—just enough to identify the resource. This design keeps default responses lightweight and fast. When you need more data, you use two complementary mechanisms to shape the response: **fields** and **expansions**.
+
+- **Fields** let you request additional properties on a primary object (e.g., asking for `public_metrics` on a Tweet).
+- **Expansions** let you include related objects in the same response (e.g., resolving an `author_id` into a full User object).
+
+Used together, fields and expansions let you fetch everything you need in a single API call instead of making separate follow-up requests.
+
+---
+
+## Fields
+
+Each object type has its own fields parameter. You pass a comma-separated list of field names as the parameter value.
+
+| Parameter | Applies to | Example values |
+|-----------|-----------|----------------|
+| `tweet.fields` | Tweet objects | `created_at`, `author_id`, `public_metrics`, `entities`, `lang`, `possibly_sensitive`, `referenced_tweets`, `attachments`, `in_reply_to_user_id` |
+| `user.fields` | User objects | `created_at`, `description`, `public_metrics`, `location`, `url`, `verified`, `entities`, `pinned_tweet_id` |
+| `media.fields` | Media objects | `url`, `preview_image_url`, `duration_ms`, `height`, `width`, `public_metrics`, `alt_text`, `variants` |
+| `poll.fields` | Poll objects | `options`, `duration_minutes`, `end_datetime`, `voting_status` |
+| `place.fields` | Place objects | `full_name`, `country`, `country_code`, `geo`, `place_type`, `name` |
+
+<Tip>
+  You can mix and match multiple fields parameters in a single request. For example, requesting `tweet.fields=public_metrics` and `user.fields=description` at the same time is perfectly valid.
+</Tip>
+
+### Requesting Tweet Fields
+
+To retrieve additional Tweet fields, append `tweet.fields` to your query string with the fields you want:
+
+```http
+GET /2/tweets/1654321098765432100?tweet.fields=created_at,public_metrics,lang,entities
+Authorization: Bearer YOUR_BEARER_TOKEN
+```
+
+The response then includes those fields on the Tweet object:
+
+```json
+{
+  "data": {
+    "id": "1654321098765432100",
+    "text": "Excited to announce the X API v2 is now generally available!",
+    "created_at": "2024-03-15T12:34:56.000Z",
+    "lang": "en",
+    "public_metrics": {
+      "retweet_count": 412,
+      "reply_count": 87,
+      "like_count": 2103,
+      "quote_count": 56
+    },
+    "entities": {
+      "hashtags": [{ "start": 85, "end": 90, "tag": "XDev" }]
+    }
+  }
+}
+```
+
+---
+
+## Expansions
+
+Expansions resolve foreign-key references into full objects, which are returned under a top-level `includes` key alongside your primary data. This means you never have to make a second API call just to look up a user or a media item.
+
+### Available Expansions
+
+| Expansion value | Resolves | Included under |
+|-----------------|----------|----------------|
+| `author_id` | Tweet author → User object | `includes.users` |
+| `referenced_tweets.id` | Referenced Tweet IDs → Tweet objects | `includes.tweets` |
+| `attachments.media_keys` | Media keys → Media objects | `includes.media` |
+| `attachments.poll_ids` | Poll IDs → Poll objects | `includes.polls` |
+| `geo.place_id` | Geo place IDs → Place objects | `includes.places` |
+| `in_reply_to_user_id` | Reply target → User object | `includes.users` |
+| `entities.mentions.username` | Mentioned usernames → User objects | `includes.users` |
+| `pinned_tweet_id` | Pinned Tweet ID → Tweet object | `includes.tweets` |
+| `owner_id` | List or Space owner → User object | `includes.users` |
+| `host_ids` | Space host IDs → User objects | `includes.users` |
+| `speaker_ids` | Space speaker IDs → User objects | `includes.users` |
+
+---
+
+## Full Example: Tweet with Author and Metrics
+
+The following example fetches a single Tweet, asks for its creation time and public engagement metrics, and expands the `author_id` into a full User object—also requesting the user's name and username.
+
+### Request
+
+```http
+GET /2/tweets/1654321098765432100?tweet.fields=created_at,public_metrics&expansions=author_id&user.fields=name,username
+Authorization: Bearer YOUR_BEARER_TOKEN
+```
+
+### Response
+
+```json
+{
+  "data": {
+    "id": "1654321098765432100",
+    "text": "Excited to announce the X API v2 is now generally available! 🚀",
+    "created_at": "2024-03-15T12:34:56.000Z",
+    "author_id": "2244994945",
+    "public_metrics": {
+      "retweet_count": 412,
+      "reply_count": 87,
+      "like_count": 2103,
+      "quote_count": 56
+    }
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "name": "X Dev",
+        "username": "XDevelopers"
+      }
+    ]
+  }
+}
+```
+
+Notice that:
+- The Tweet itself is under the `data` key.
+- The expanded User object lives in `includes.users`.
+- The `author_id` on the Tweet matches the `id` in `includes.users`, so you can join them client-side.
+
+---
+
+## Combining Multiple Expansions
+
+You can pass multiple expansion values as a comma-separated list. The example below fetches a Tweet with its author and all attached media:
+
+```http
+GET /2/tweets/1654321098765432100
+  ?tweet.fields=created_at,public_metrics,attachments
+  &expansions=author_id,attachments.media_keys
+  &user.fields=name,username,verified
+  &media.fields=url,preview_image_url,alt_text,width,height
+Authorization: Bearer YOUR_BEARER_TOKEN
+```
+
+```json
+{
+  "data": {
+    "id": "1654321098765432100",
+    "text": "Check out this chart! 📊",
+    "created_at": "2024-03-15T12:34:56.000Z",
+    "author_id": "2244994945",
+    "attachments": {
+      "media_keys": ["3_1234567890123456789"]
+    },
+    "public_metrics": {
+      "retweet_count": 100,
+      "reply_count": 22,
+      "like_count": 540,
+      "quote_count": 18
+    }
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "name": "X Dev",
+        "username": "XDevelopers",
+        "verified": false
+      }
+    ],
+    "media": [
+      {
+        "media_key": "3_1234567890123456789",
+        "type": "photo",
+        "url": "https://pbs.twimg.com/media/example.jpg",
+        "alt_text": "A bar chart showing monthly API usage",
+        "width": 1200,
+        "height": 675
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Expansion Reference Table
+
+The following table summarises all supported expansion values, what they resolve, and the additional fields parameter you can pair with each expansion.
+
+| `expansions` value | Resolves | Paired `fields` parameter |
+|--------------------|----------|--------------------------|
+| `author_id` | User who authored the Tweet | `user.fields` |
+| `referenced_tweets.id` | Tweets referenced via RT, quote, or reply | `tweet.fields` |
+| `attachments.media_keys` | Photos, videos, or GIFs attached to a Tweet | `media.fields` |
+| `attachments.poll_ids` | Polls embedded in a Tweet | `poll.fields` |
+| `geo.place_id` | Geographic place tagged on a Tweet | `place.fields` |
+| `in_reply_to_user_id` | User the Tweet is replying to | `user.fields` |
+| `entities.mentions.username` | Users mentioned in the Tweet text | `user.fields` |
+| `pinned_tweet_id` | A user's pinned Tweet | `tweet.fields` |
+| `owner_id` | Owner of a List or Space | `user.fields` |
+| `host_ids` | Hosts of a Space | `user.fields` |
+| `speaker_ids` | Speakers in a Space | `user.fields` |
+
+<Tip>
+  Combining fields and expansions is the most efficient way to use the X API. Instead of fetching a Tweet, then making a second call to look up its author, and a third to fetch attached media, you can retrieve all of that in a single request. This reduces latency, lowers your request count against rate limits, and simplifies your application logic.
+</Tip>

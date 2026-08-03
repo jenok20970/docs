@@ -1,0 +1,291 @@
+---
+title: "GET /2/users/:id/tweets — User Timelines | X API v2"
+sidebarTitle: "Timelines"
+description: "Retrieve tweets posted by a specific user or tweets that mention them, with time-range filters, retweet exclusions, and cursor-based pagination."
+---
+
+The timeline endpoints let you fetch tweets associated with a specific user account — either the tweets they have posted themselves, or tweets from other users that mention them. Both endpoints support time-range filtering, field expansions, and cursor-based pagination so you can efficiently retrieve large volumes of tweets or poll incrementally for new activity.
+
+## GET /2/users/:id/tweets
+
+Retrieve the most recent tweets posted by a user. Results are returned in reverse-chronological order.
+
+```
+GET https://api.twitter.com/2/users/:id/tweets
+```
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique ID of the user whose posts you want to retrieve. Use
+  `GET /2/users/by/username/:username` to look up a user ID by username.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  The maximum number of tweets to return per page. Minimum `5`, maximum `100`, default `100`.
+</ParamField>
+
+<ParamField query="start_time" type="string (ISO 8601)">
+  The earliest UTC timestamp for which results are returned. Tweets older than this time are
+  excluded. Format: `YYYY-MM-DDTHH:mm:ssZ`
+</ParamField>
+
+<ParamField query="end_time" type="string (ISO 8601)">
+  The latest UTC timestamp for which results are returned. Format: `YYYY-MM-DDTHH:mm:ssZ`
+</ParamField>
+
+<ParamField query="since_id" type="string">
+  Return results with a tweet ID more recent than this ID. Useful for incremental polling.
+  Takes precedence over `start_time` if both are provided.
+</ParamField>
+
+<ParamField query="until_id" type="string">
+  Return results with a tweet ID older than this ID. Takes precedence over `end_time` if
+  both are provided.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  The pagination token returned by a previous response's `meta.next_token` or
+  `meta.previous_token`. Pass it here to retrieve the next or previous page.
+</ParamField>
+
+<ParamField query="exclude" type="string">
+  Comma-separated list of tweet types to exclude from the response. Available values:
+  `retweets`, `replies`. For example, `exclude=retweets,replies` returns only original posts.
+</ParamField>
+
+<ParamField query="tweet.fields" type="string">
+  Comma-separated tweet fields to include. Available values:
+  `attachments`, `author_id`, `context_annotations`, `conversation_id`, `created_at`,
+  `edit_controls`, `entities`, `geo`, `id`, `in_reply_to_user_id`, `lang`,
+  `public_metrics`, `referenced_tweets`, `reply_settings`, `source`, `text`, `withheld`
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Comma-separated expansion keys. Available values:
+  `author_id`, `attachments.media_keys`, `attachments.poll_ids`,
+  `entities.mentions.username`, `geo.place_id`, `in_reply_to_user_id`,
+  `referenced_tweets.id`, `referenced_tweets.id.author_id`
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  Comma-separated user fields for expanded user objects. Available values:
+  `created_at`, `description`, `id`, `location`, `name`, `profile_image_url`,
+  `protected`, `public_metrics`, `url`, `username`, `verified`
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://api.twitter.com/2/users/2244994945/tweets?\
+max_results=10&\
+exclude=retweets,replies&\
+tweet.fields=created_at,public_metrics,lang&\
+expansions=attachments.media_keys&\
+media.fields=type,url,preview_image_url" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "1760203948271431700",
+      "text": "We just shipped early access to the new X API v2 streaming endpoints. Read the announcement 👇",
+      "created_at": "2024-02-21T14:05:22.000Z",
+      "lang": "en",
+      "public_metrics": {
+        "retweet_count": 340,
+        "reply_count": 72,
+        "like_count": 2104,
+        "quote_count": 55,
+        "bookmark_count": 289,
+        "impression_count": 68200
+      },
+      "edit_history_tweet_ids": ["1760203948271431700"]
+    },
+    {
+      "id": "1758901234567890000",
+      "text": "New tutorial: paginate through user timelines with Python in under 30 lines of code.",
+      "created_at": "2024-02-17T10:30:00.000Z",
+      "lang": "en",
+      "public_metrics": {
+        "retweet_count": 189,
+        "reply_count": 34,
+        "like_count": 1456,
+        "quote_count": 28,
+        "bookmark_count": 412,
+        "impression_count": 41800
+      },
+      "edit_history_tweet_ids": ["1758901234567890000"]
+    }
+  ],
+  "meta": {
+    "newest_id": "1760203948271431700",
+    "oldest_id": "1758901234567890000",
+    "result_count": 10,
+    "next_token": "7140dibdnow9c7btw3w3y28b2lkme01z9rnkfv0kxe"
+  }
+}
+```
+
+---
+
+## GET /2/users/:id/mentions
+
+Retrieve the most recent tweets that **mention** a user. Results are returned in reverse-chronological order.
+
+```
+GET https://api.twitter.com/2/users/:id/mentions
+```
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique ID of the user whose mentions you want to retrieve.
+</ParamField>
+
+### Query Parameters
+
+This endpoint accepts the same query parameters as `GET /2/users/:id/tweets` — `max_results`, `start_time`, `end_time`, `since_id`, `until_id`, `pagination_token`, `tweet.fields`, `expansions`, and `user.fields` — with the exception of `exclude`, which is not supported here.
+
+### Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://api.twitter.com/2/users/2244994945/mentions?\
+max_results=20&\
+tweet.fields=created_at,author_id,public_metrics&\
+expansions=author_id&\
+user.fields=name,username,profile_image_url" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "1760399812347654144",
+      "text": "@XDevelopers The new streaming endpoint is working great — much lower latency than before!",
+      "created_at": "2024-02-21T21:44:10.000Z",
+      "author_id": "874026356749422593",
+      "public_metrics": {
+        "retweet_count": 3,
+        "reply_count": 1,
+        "like_count": 47,
+        "quote_count": 0,
+        "bookmark_count": 5,
+        "impression_count": 1820
+      },
+      "edit_history_tweet_ids": ["1760399812347654144"]
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "id": "874026356749422593",
+        "name": "Dev Community",
+        "username": "devcommunity",
+        "profile_image_url": "https://pbs.twimg.com/profile_images/874026356749422593/photo.jpg"
+      }
+    ]
+  },
+  "meta": {
+    "newest_id": "1760399812347654144",
+    "oldest_id": "1759812034521628672",
+    "result_count": 20,
+    "next_token": "a92bv78enmw7g2fo5gesq4dbizbt2vmn2ysd2vq1"
+  }
+}
+```
+
+---
+
+## Pagination
+
+Both timeline endpoints use cursor-based pagination. Each response includes a `meta` object with pagination tokens you can use to move through the result set.
+
+<Steps>
+  <Step title="Make the initial request">
+    Call the endpoint with your desired parameters. The response returns up to `max_results`
+    tweets and a `meta` object.
+  </Step>
+  <Step title="Check for a next_token">
+    If `meta.next_token` is present, there are more results available. Pass its value as the
+    `pagination_token` query parameter in your next request — keep all other parameters identical.
+  </Step>
+  <Step title="Repeat until next_token is absent">
+    Continue requesting pages until `meta.next_token` is no longer returned, which means you
+    have reached the oldest available result.
+  </Step>
+  <Step title="Store newest_id for incremental polling">
+    Save `meta.newest_id` from your first page of results. On subsequent polling runs, pass it
+    as `since_id` to fetch only tweets newer than your last known result — avoiding duplicates
+    without re-scanning the full timeline.
+  </Step>
+</Steps>
+
+### Incremental Polling Example
+
+```bash
+# First run — store the newest_id from the response
+curl -X GET "https://api.twitter.com/2/users/2244994945/tweets?max_results=100" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+
+# Subsequent run — pass the stored newest_id as since_id
+curl -X GET "https://api.twitter.com/2/users/2244994945/tweets?\
+max_results=100&\
+since_id=1760203948271431700" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+<Warning>
+  The X API returns a maximum of **3,200 of the most recent tweets** from a user's timeline,
+  regardless of how far back `start_time` or `since_id` goes. For historical data beyond this
+  limit, use the full-archive search endpoint.
+</Warning>
+
+---
+
+## Response Fields
+
+<ResponseField name="data" type="array of tweet objects">
+  An array of tweets in reverse-chronological order. Each object includes `id`, `text`,
+  `edit_history_tweet_ids`, and any additional fields requested via `tweet.fields`.
+</ResponseField>
+
+<ResponseField name="meta.result_count" type="integer">
+  The number of results returned in this page of the response.
+</ResponseField>
+
+<ResponseField name="meta.newest_id" type="string">
+  The ID of the most recent tweet in this page. Store this value for incremental polling
+  using `since_id`.
+</ResponseField>
+
+<ResponseField name="meta.oldest_id" type="string">
+  The ID of the oldest tweet in this page.
+</ResponseField>
+
+<ResponseField name="meta.next_token" type="string">
+  Pass this value as `pagination_token` to retrieve the next (older) page of results.
+  Not present when you are on the last page.
+</ResponseField>
+
+<ResponseField name="meta.previous_token" type="string">
+  Pass this value as `pagination_token` to retrieve the previous (newer) page of results.
+  Only present when you are not on the first page.
+</ResponseField>

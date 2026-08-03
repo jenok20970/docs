@@ -1,0 +1,152 @@
+---
+title: "X API Rate Limits: Per-Endpoint Quotas and Best Practices"
+sidebarTitle: "Rate Limits"
+description: "Understand X API v2 rate limits, read response headers to track quota usage, handle 429 errors gracefully, and follow best practices."
+---
+
+The X API enforces rate limits to ensure fair usage and platform stability. Every application and every authenticated user is subject to two distinct types of limits:
+
+- **15-minute window limits** — a cap on how many requests you can make to a specific endpoint within any rolling 15-minute window.
+- **Monthly usage caps** — a ceiling on the total number of Tweets (or other objects) you can read or write each calendar month, determined by your access tier.
+
+Understanding both limit types—and knowing how to detect and respond to them—keeps your integration running smoothly.
+
+---
+
+## How Rate Limiting Works
+
+Rate limits in X API v2 are applied per **endpoint**, per **authentication type** (app-only Bearer Token vs. user OAuth context), and per **access tier** (Free, Basic, Pro, Enterprise).
+
+When you exhaust a limit, the API responds with **HTTP 429 Too Many Requests**. You must wait until the current window resets before making further requests to that endpoint.
+
+<Warning>
+  Monthly caps and 15-minute window limits are independent. You can hit your monthly Tweet cap long before a 15-minute window closes—or vice versa. Always monitor both the window headers and your monthly usage dashboard.
+</Warning>
+
+---
+
+## Rate Limit Response Headers
+
+Every response from the X API includes headers that tell you exactly where you stand in the current window:
+
+| Header | Type | Description |
+|--------|------|-------------|
+| `x-rate-limit-limit` | integer | The maximum number of requests allowed in this window for this endpoint. |
+| `x-rate-limit-remaining` | integer | The number of requests you have left in the current window. |
+| `x-rate-limit-reset` | integer (Unix epoch) | The UTC time (in seconds since epoch) when the current window resets and your remaining count is restored to the limit. |
+
+Read these headers on every response—not just on 429s—so you can proactively slow down before hitting the ceiling.
+
+---
+
+## Rate Limits by Tier and Endpoint
+
+The table below lists limits for the most commonly used endpoints. Limits marked **per app** apply to your entire app regardless of how many users authenticate through it. Limits marked **per user** apply individually to each authenticated user.
+
+| Endpoint | Free | Basic | Pro | Scope |
+|----------|------|-------|-----|-------|
+| `GET /2/tweets/search/recent` | 500K Tweets/month | 1M Tweets/month | 10M Tweets/month | Per app |
+| `GET /2/tweets/search/recent` | 1 req/15 min | 60 req/15 min | 300 req/15 min | Per app |
+| `GET /2/tweets/:id` | — | 15 req/15 min (app auth) | 900 req/15 min (app auth) | Per app |
+| `GET /2/tweets/:id` | — | 900 req/15 min (user auth) | 900 req/15 min (user auth) | Per user |
+| `POST /2/tweets` | 1,500 Tweets/month | 3,000 Tweets/month | 300,000 Tweets/month | Per app |
+| `DELETE /2/tweets/:id` | 1,500 deletions/month | 3,000 deletions/month | 300,000 deletions/month | Per app |
+| `GET /2/users/:id` | — | 300 req/15 min | 900 req/15 min | Per app |
+| `GET /2/users/me` | — | 25 req/15 min | 75 req/15 min | Per user |
+| `GET /2/users/:id/tweets` | — | 5 req/15 min | 900 req/15 min | Per user |
+| `GET /2/tweets/search/stream` | — | — | 50 req/15 min | Per app |
+
+<Note>
+  Enterprise tier limits are negotiated per contract and are not listed here. Contact your X sales representative for Enterprise quota details.
+</Note>
+
+---
+
+## Handling 429 Too Many Requests
+
+When the API returns a 429, your application should:
+
+<Steps>
+  <Step title="Read the reset header">
+    Parse the `x-rate-limit-reset` header from the 429 response. This Unix timestamp tells you exactly when the current window resets.
+  </Step>
+  <Step title="Calculate the wait time">
+    Subtract the current Unix time from the reset timestamp to get the number of seconds you need to wait.
+  </Step>
+  <Step title="Sleep until reset">
+    Pause your request loop for at least that many seconds. Add a small buffer (2–5 seconds) to account for clock skew.
+  </Step>
+  <Step title="Retry the request">
+    After the sleep, retry your original request. Do not implement an aggressive retry loop without a sleep—repeated 429 requests count against your quota and may trigger additional restrictions.
+  </Step>
+</Steps>
+
+### Python: Reading Rate Limit Headers and Sleeping Until Reset
+
+```python
+import requests
+import time
+
+def fetch_with_rate_limit_handling(url: str, headers: dict) -> dict:
+    """
+    Fetch a URL and automatically wait if rate-limited.
+    Returns the parsed JSON response body.
+    """
+    while True:
+        response = requests.get(url, headers=headers)
+
+        # Read rate limit headers from every response
+        limit = int(response.headers.get("x-rate-limit-limit", 0))
+        remaining = int(response.headers.get("x-rate-limit-remaining", 0))
+        reset_at = int(response.headers.get("x-rate-limit-reset", 0))
+
+        print(f"Rate limit: {remaining}/{limit} remaining, resets at {reset_at}")
+
+        if response.status_code == 200:
+            return response.json()
+
+        elif response.status_code == 429:
+            # Calculate how long to sleep
+            now = int(time.time())
+            sleep_seconds = max(reset_at - now + 5, 60)  # at least 60s, with 5s buffer
+            print(f"Rate limited. Sleeping {sleep_seconds}s until window resets...")
+            time.sleep(sleep_seconds)
+            # Loop back and retry
+
+        else:
+            response.raise_for_status()
+
+
+bearer_token = "YOUR_BEARER_TOKEN"
+auth_headers = {"Authorization": f"Bearer {bearer_token}"}
+
+data = fetch_with_rate_limit_handling(
+    "https://api.twitter.com/2/tweets/search/recent?query=from:XDevelopers&tweet.fields=public_metrics",
+    headers=auth_headers,
+)
+print(data)
+```
+
+---
+
+## Best Practices
+
+Follow these guidelines to stay well within your rate limits and build a more resilient integration.
+
+**Cache responses wherever possible.**
+If multiple parts of your application need the same Tweet or user data, fetch it once and cache the result. Most user profiles and Tweet metadata change infrequently; a cache TTL of 5–15 minutes is reasonable for most use cases.
+
+**Use streaming instead of polling.**
+If you need a real-time feed of Tweets matching a filter, use the [filtered stream endpoint](/api-reference/streams/filtered-stream) rather than repeatedly calling the search endpoint. The stream pushes data to you as it happens, consuming only a single persistent connection instead of hundreds of polling requests.
+
+**Batch lookups with multi-ID endpoints.**
+Instead of calling `GET /2/tweets/:id` once per Tweet, use `GET /2/tweets?ids=id1,id2,id3` to look up up to 100 Tweets in a single request. The same principle applies to user lookups.
+
+**Respect `Retry-After` headers.**
+Some 429 responses may include a `Retry-After` header in addition to `x-rate-limit-reset`. Always honor the larger of the two values.
+
+**Monitor your monthly usage in the developer portal.**
+The [developer portal dashboard](https://developer.x.com) shows your month-to-date Tweet volume. Set up alerts before you reach 80% of your monthly cap so you have time to throttle your app.
+
+**Use app-only auth for read operations.**
+App-only Bearer Token authentication has higher rate limits than user-context OAuth 1.0a for most read endpoints. Use app-only auth whenever you don't need to act on behalf of a specific user.

@@ -1,0 +1,301 @@
+---
+title: "Search Tweets Using the X API v2 Recent and Archive Search"
+sidebarTitle: "Search Tweets"
+description: "Query recent or full-archive tweets using the X API v2 search endpoints with powerful operators, field expansions, and cursor-based pagination."
+---
+
+The X API v2 provides two search endpoints that let you retrieve tweets matching a query string. You can filter by keywords, users, hashtags, media presence, language, and much more using a powerful operator syntax.
+
+<CardGroup cols={2}>
+  <Card title="Recent Search" icon="clock">
+    Search tweets from the **last 7 days**. Available on all access tiers (Free, Basic, Pro, Enterprise).
+    `GET /2/tweets/search/recent`
+  </Card>
+  <Card title="Full-Archive Search" icon="database">
+    Search the **complete history** of public tweets since March 2006. Requires **Pro tier or above**.
+    `GET /2/tweets/search/all`
+  </Card>
+</CardGroup>
+
+## Query operators
+
+Build queries by combining one or more operators. Operators are case-insensitive unless otherwise noted.
+
+| Operator | Description | Example |
+|---|---|---|
+| `keyword` | Matches tweets containing the word | `coffee` |
+| `"exact phrase"` | Matches an exact phrase | `"cold brew"` |
+| `from:username` | Tweets authored by a specific user | `from:XDevelopers` |
+| `to:username` | Replies directed at a specific user | `to:XDevelopers` |
+| `@mention` | Tweets mentioning a user | `@XDevelopers` |
+| `#hashtag` | Tweets containing a hashtag | `#BuildOnX` |
+| `url:` | Tweets containing a URL or domain | `url:developer.x.com` |
+| `has:media` | Tweets that include any media | `has:media` |
+| `has:images` | Tweets that include images | `has:images` |
+| `has:videos` | Tweets that include native videos | `has:videos` |
+| `has:links` | Tweets containing an external URL | `has:links` |
+| `is:retweet` | Retweets only | `is:retweet` |
+| `is:reply` | Reply tweets only | `is:reply` |
+| `is:quote` | Quote tweets only | `is:quote` |
+| `lang:` | Tweets in a specific language (BCP-47) | `lang:en` |
+| `-operator` | Negation — exclude tweets matching the operator | `-is:retweet` |
+| `AND` / space | Both conditions must be true (implicit) | `coffee latte` |
+| `OR` | Either condition must be true | `coffee OR tea` |
+| `( )` | Group operators to control precedence | `(coffee OR tea) lang:en` |
+
+<Tip>
+  Add `-is:retweet` to almost every query to exclude retweets and focus on original content. Retweets often dominate results and dilute signal.
+</Tip>
+
+## Query parameters
+
+<ParamField query="query" type="string" required>
+  Your search query string. Maximum 512 characters for recent search; 1024 for full-archive search.
+</ParamField>
+
+<ParamField query="max_results" type="integer">
+  Number of results per page. Between `10` and `100` (default `10`).
+</ParamField>
+
+<ParamField query="next_token" type="string">
+  Pagination token returned in the previous response's `meta.next_token` field.
+</ParamField>
+
+<ParamField query="tweet.fields" type="string">
+  Comma-separated list of tweet fields to include, e.g. `author_id,created_at,public_metrics,lang`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects inline, e.g. `author_id` to include the full user object.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  Fields to include on expanded user objects, e.g. `username,profile_image_url,verified`.
+</ParamField>
+
+<ParamField query="start_time" type="string">
+  ISO 8601 datetime. Only return tweets created after this time.
+</ParamField>
+
+<ParamField query="end_time" type="string">
+  ISO 8601 datetime. Only return tweets created before this time.
+</ParamField>
+
+## Build and execute a search
+
+<Steps>
+  <Step title="Build your query string">
+    Start with your core keyword or phrase, then layer in operators to narrow results. Test your query iteratively — start broad, then tighten.
+
+    ```
+    (developer OR "software engineer") #AI -is:retweet lang:en
+    ```
+
+    This query returns original English-language tweets that contain "developer" or "software engineer" and the hashtag `#AI`.
+  </Step>
+
+  <Step title="Add tweet fields and expansions">
+    By default, the API returns only `id` and `text`. Request additional fields using `tweet.fields` and expand related objects with `expansions`.
+
+    ```
+    tweet.fields=author_id,created_at,public_metrics,lang
+    expansions=author_id
+    user.fields=username,name,profile_image_url,verified_type
+    ```
+  </Step>
+
+  <Step title="Paginate through results">
+    Check the response `meta` object for a `next_token`. Pass it as the `next_token` query parameter in your next request to fetch the following page. Continue until `next_token` is absent.
+
+    ```json
+    "meta": {
+      "newest_id": "1234567890",
+      "oldest_id": "1234567800",
+      "result_count": 10,
+      "next_token": "avdjfk..."
+    }
+    ```
+  </Step>
+</Steps>
+
+## Examples
+
+<CodeGroup>
+```bash cURL
+curl -G "https://api.twitter.com/2/tweets/search/recent" \
+  -H "Authorization: Bearer $BEARER_TOKEN" \
+  --data-urlencode "query=(developer OR \"software engineer\") #AI -is:retweet lang:en" \
+  --data-urlencode "max_results=10" \
+  --data-urlencode "tweet.fields=author_id,created_at,public_metrics,lang" \
+  --data-urlencode "expansions=author_id" \
+  --data-urlencode "user.fields=username,name,verified_type"
+```
+
+```python Python
+import requests
+import os
+
+BEARER_TOKEN = os.environ["BEARER_TOKEN"]
+
+def search_tweets(query, max_results=10):
+    url = "https://api.twitter.com/2/tweets/search/recent"
+    headers = {"Authorization": f"Bearer {BEARER_TOKEN}"}
+    params = {
+        "query": query,
+        "max_results": max_results,
+        "tweet.fields": "author_id,created_at,public_metrics,lang",
+        "expansions": "author_id",
+        "user.fields": "username,name,verified_type",
+    }
+
+    all_tweets = []
+    next_token = None
+
+    while True:
+        if next_token:
+            params["next_token"] = next_token
+
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        tweets = data.get("data", [])
+        all_tweets.extend(tweets)
+        print(f"Fetched {len(tweets)} tweets (total: {len(all_tweets)})")
+
+        # Check for next page
+        next_token = data.get("meta", {}).get("next_token")
+        if not next_token:
+            break
+
+    return all_tweets
+
+
+if __name__ == "__main__":
+    query = '(developer OR "software engineer") #AI -is:retweet lang:en'
+    tweets = search_tweets(query, max_results=100)
+    for tweet in tweets:
+        print(tweet["id"], tweet["text"][:80])
+```
+
+```javascript JavaScript
+const BEARER_TOKEN = process.env.BEARER_TOKEN;
+
+async function searchTweets(query, maxResults = 10) {
+  const url = new URL("https://api.twitter.com/2/tweets/search/recent");
+  const params = {
+    query,
+    max_results: maxResults,
+    "tweet.fields": "author_id,created_at,public_metrics,lang",
+    expansions: "author_id",
+    "user.fields": "username,name,verified_type",
+  };
+
+  const allTweets = [];
+  let nextToken = null;
+
+  do {
+    if (nextToken) params.next_token = nextToken;
+
+    Object.entries(params).forEach(([key, value]) =>
+      url.searchParams.set(key, value)
+    );
+
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`API error ${response.status}: ${JSON.stringify(error)}`);
+    }
+
+    const data = await response.json();
+    const tweets = data.data ?? [];
+    allTweets.push(...tweets);
+    console.log(`Fetched ${tweets.length} tweets (total: ${allTweets.length})`);
+
+    nextToken = data.meta?.next_token ?? null;
+  } while (nextToken);
+
+  return allTweets;
+}
+
+searchTweets('(developer OR "software engineer") #AI -is:retweet lang:en', 100)
+  .then((tweets) => tweets.forEach((t) => console.log(t.id, t.text.slice(0, 80))))
+  .catch(console.error);
+```
+</CodeGroup>
+
+## Response structure
+
+A successful response returns a `data` array of tweet objects, an optional `includes` object containing expanded resources, and a `meta` object with pagination details.
+
+<ResponseField name="data" type="array">
+  Array of tweet objects matching your query, ordered from newest to oldest.
+</ResponseField>
+
+<ResponseField name="data[].id" type="string">
+  Unique identifier of the tweet.
+</ResponseField>
+
+<ResponseField name="data[].text" type="string">
+  Full text of the tweet, including any URLs and mentions.
+</ResponseField>
+
+<ResponseField name="includes.users" type="array">
+  Expanded user objects, present when `expansions=author_id` is requested.
+</ResponseField>
+
+<ResponseField name="meta.result_count" type="integer">
+  Number of results in this page.
+</ResponseField>
+
+<ResponseField name="meta.next_token" type="string">
+  Pagination token to retrieve the next page. Absent on the last page.
+</ResponseField>
+
+```json
+{
+  "data": [
+    {
+      "id": "1780000000000000001",
+      "text": "Excited to share my latest #AI project built on the X API! #BuildOnX",
+      "author_id": "123456789",
+      "created_at": "2024-04-15T12:34:56.000Z",
+      "lang": "en",
+      "public_metrics": {
+        "retweet_count": 12,
+        "reply_count": 3,
+        "like_count": 47,
+        "quote_count": 2,
+        "impression_count": 5400
+      }
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "id": "123456789",
+        "name": "Jane Dev",
+        "username": "janedev",
+        "verified_type": "none"
+      }
+    ]
+  },
+  "meta": {
+    "newest_id": "1780000000000000001",
+    "oldest_id": "1779000000000000050",
+    "result_count": 10,
+    "next_token": "avdjfk9s..."
+  }
+}
+```
+
+<Warning>
+  The X API enforces **rate limits** per 15-minute window on search endpoints. If you exceed the limit, the API returns `HTTP 429` and sets the `x-rate-limit-reset` header to the Unix timestamp when your quota resets. Build retry logic with the reset time to avoid dropped data.
+</Warning>
+
+<Note>
+  **Full-archive search requires Pro tier or above.** The `GET /2/tweets/search/all` endpoint is not available on Free or Basic access. If you call it without the correct access level, the API returns a `403 Forbidden` response. Upgrade your access at [developer.x.com](https://developer.x.com).
+</Note>

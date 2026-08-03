@@ -1,0 +1,182 @@
+---
+title: "X API v2 Quickstart: From Credentials to First API Call"
+sidebarTitle: "Quickstart"
+description: "Set up developer access, grab your credentials, and make your first X API v2 call — search recent tweets with curl, Python, or JavaScript."
+---
+
+This guide walks you through everything you need to go from zero to your first successful API response. By the end, you'll have a working credential set and a real tweet in your terminal.
+
+<Steps>
+  <Step title="Apply for developer access">
+    Go to [developer.x.com](https://developer.x.com) and sign in with your X account. Click **Sign up** on the developer portal landing page and complete the application.
+
+    You'll be asked to:
+    - Describe what you intend to build
+    - Confirm whether your use case involves government or political content
+    - Agree to the [Developer Agreement and Policy](https://developer.x.com/en/developer-terms/agreement-and-policy)
+
+    Most applications for the **Free** tier are approved instantly. Higher tiers may require additional review.
+  </Step>
+
+  <Step title="Create a project and app, then get your Bearer Token">
+    Once approved, open the [Developer Portal](https://developer.x.com/portal/dashboard).
+
+    1. Click **+ Create Project**, give it a name and description, and select a use-case category.
+    2. Inside your new project, click **+ Add App** and name your app.
+    3. On the app's **Keys and tokens** page, copy the following values and store them securely:
+       - **API Key** (also called Consumer Key)
+       - **API Key Secret** (also called Consumer Secret)
+       - **Bearer Token**
+
+    You'll use the **Bearer Token** for read-only, app-only requests — which is exactly what this quickstart covers.
+
+    <Warning>
+      Never commit API keys or secrets to version control. Use environment variables or a secrets manager to keep credentials out of your codebase.
+    </Warning>
+  </Step>
+
+  <Step title="Make your first API call — search recent tweets">
+    Use the Bearer Token to search for recent tweets. The example below searches for tweets posted by `@XDevelopers` and returns the five most recent.
+
+    Replace `<YOUR_BEARER_TOKEN>` with the token you copied in the previous step.
+
+    ```bash
+    curl "https://api.twitter.com/2/tweets/search/recent?query=from%3AXDevelopers&max_results=5" \
+      -H "Authorization: Bearer <YOUR_BEARER_TOKEN>"
+    ```
+
+    <Note>
+      On the **Free** tier, the recent search endpoint is available but rate-limited to 1 request per 15 minutes (app-level). The **Basic** tier raises this to 15 requests per 15 minutes. Plan your polling strategy accordingly.
+    </Note>
+  </Step>
+
+  <Step title="Explore the response JSON">
+    A successful response looks like this. The `data` array contains tweet objects; each object includes at minimum an `id`, `text`, and `edit_history_tweet_ids` field.
+
+    ```json
+    {
+      "data": [
+        {
+          "id": "1760000000000000001",
+          "text": "We just shipped a major update to the X API v2 filtered stream. Check out the docs for details 🚀",
+          "author_id": "2244994945",
+          "edit_history_tweet_ids": ["1760000000000000001"]
+        },
+        {
+          "id": "1759000000000000002",
+          "text": "Join us tomorrow for a live Q&A on the Developer Forums. Drop your questions below 👇",
+          "author_id": "2244994945",
+          "edit_history_tweet_ids": ["1759000000000000002"]
+        },
+        {
+          "id": "1758000000000000003",
+          "text": "The new /2/users/:id/mentions endpoint now supports pagination tokens. Full changelog in the link.",
+          "author_id": "2244994945",
+          "edit_history_tweet_ids": ["1758000000000000003"]
+        }
+      ],
+      "meta": {
+        "newest_id": "1760000000000000001",
+        "oldest_id": "1758000000000000003",
+        "result_count": 3,
+        "next_token": "avdjfk..."
+      }
+    }
+    ```
+
+    **Key fields to know:**
+
+    | Field | Description |
+    |---|---|
+    | `data[].id` | The unique ID of the tweet |
+    | `data[].text` | The full text content of the tweet |
+    | `data[].author_id` | The user ID of the tweet's author |
+    | `meta.next_token` | Pagination token — pass it as `next_token` in your next request to get the following page of results |
+
+    To retrieve additional fields like `created_at`, `public_metrics`, or author details, add `tweet.fields` and `expansions` query parameters. For example:
+
+    ```bash
+    curl "https://api.twitter.com/2/tweets/search/recent\
+    ?query=from%3AXDevelopers\
+    &max_results=5\
+    &tweet.fields=created_at,public_metrics\
+    &expansions=author_id\
+    &user.fields=name,username,profile_image_url" \
+      -H "Authorization: Bearer <YOUR_BEARER_TOKEN>"
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Same request in Python and JavaScript
+
+<CodeGroup>
+
+```python Python (requests)
+import requests
+import os
+
+bearer_token = os.environ.get("BEARER_TOKEN")
+
+url = "https://api.twitter.com/2/tweets/search/recent"
+params = {
+    "query": "from:XDevelopers",
+    "max_results": 5,
+    "tweet.fields": "created_at,public_metrics",
+    "expansions": "author_id",
+    "user.fields": "name,username",
+}
+headers = {
+    "Authorization": f"Bearer {bearer_token}"
+}
+
+response = requests.get(url, headers=headers, params=params)
+response.raise_for_status()
+
+data = response.json()
+for tweet in data.get("data", []):
+    print(f"[{tweet['id']}] {tweet['text']}")
+```
+
+```javascript JavaScript (fetch)
+const bearerToken = process.env.BEARER_TOKEN;
+
+const params = new URLSearchParams({
+  query: "from:XDevelopers",
+  max_results: "5",
+  "tweet.fields": "created_at,public_metrics",
+  expansions: "author_id",
+  "user.fields": "name,username",
+});
+
+const url = `https://api.twitter.com/2/tweets/search/recent?${params}`;
+
+const response = await fetch(url, {
+  headers: {
+    Authorization: `Bearer ${bearerToken}`,
+  },
+});
+
+if (!response.ok) {
+  throw new Error(`HTTP error: ${response.status}`);
+}
+
+const data = await response.json();
+for (const tweet of data.data ?? []) {
+  console.log(`[${tweet.id}] ${tweet.text}`);
+}
+```
+
+</CodeGroup>
+
+---
+
+## What's next?
+
+You've made your first X API call. Here's where to go from here:
+
+- **[Authentication overview](/authentication/overview)** — Learn how to authenticate on behalf of a user with OAuth 2.0 PKCE so your app can post tweets, follow accounts, and more.
+- **[Access Levels](/getting-started/access-levels)** — Understand the rate limits and monthly caps for your tier and plan around them.
+- **[SDKs & Tools](/tools/sdks)** — Speed up development with the official Python or TypeScript SDK instead of raw HTTP calls.
+- **[Search tweets guide](/guides/search-tweets)** — Go deep on query syntax to build precise, high-signal search filters.

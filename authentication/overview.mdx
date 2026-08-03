@@ -1,0 +1,74 @@
+---
+title: "X API Authentication: OAuth 2.0, OAuth 1.0a, and Bearer"
+sidebarTitle: "Overview"
+description: "Compare OAuth 2.0 PKCE, OAuth 1.0a, and App-Only Bearer Token authentication for the X API v2 and choose the right method for your app."
+---
+
+Authentication is the foundation of every X API integration. Before your app can read tweets, post on behalf of users, or access account data, it must prove its identity — and in some cases, prove that a user has granted it permission to act on their behalf. The X API v2 supports three authentication methods, each designed for a different trust model and use case.
+
+## Comparison of Authentication Methods
+
+| Method | Context | Best For | Token Type |
+|---|---|---|---|
+| **OAuth 2.0 + PKCE** | User context | New apps that act on behalf of users | Access token + refresh token |
+| **OAuth 1.0a** | User context | Legacy integrations and some v1.1 endpoints | Access token + access token secret |
+| **App-Only (Bearer Token)** | App context | Read-only public data, no user required | Bearer token |
+
+## When to Use Each Method
+
+### OAuth 2.0 Authorization Code Flow with PKCE
+
+Use OAuth 2.0 PKCE whenever your app needs to **act on behalf of a user** — posting tweets, reading DMs, managing follows, or accessing any private data. This is the recommended method for all new applications. PKCE (Proof Key for Code Exchange) adds a layer of security that makes it safe to use in public clients like mobile apps and single-page applications where you cannot securely store a client secret.
+
+Choose OAuth 2.0 PKCE if you:
+- Are building a new integration from scratch
+- Need to write data or access private user information
+- Want refresh tokens so users stay logged in without re-authorizing
+- Are building a mobile app, SPA, or server-side web application
+
+### OAuth 1.0a
+
+OAuth 1.0a is the older user-context authentication standard. It is still supported for backward compatibility and is **required by certain Twitter API v1.1 endpoints** that have not yet migrated to v2. New projects should prefer OAuth 2.0 PKCE, but if you are maintaining an existing integration or targeting a v1.1-only endpoint, OAuth 1.0a remains a valid choice.
+
+Choose OAuth 1.0a if you:
+- Are maintaining an existing application built before OAuth 2.0 was available
+- Need to call a specific API v1.1 endpoint that does not yet support v2
+
+### App-Only (Bearer Token)
+
+App-Only authentication uses a single Bearer Token that represents your application rather than any individual user. It grants **read-only access to public data** and requires no user interaction. This makes it ideal for dashboards, bots that only read data, search tools, and any scenario where you simply want to fetch public content without a user login flow.
+
+Choose App-Only if you:
+- Only need to read public tweets, timelines, or search results
+- Are building a server-side service with no user login requirement
+- Want the simplest possible integration with minimal setup
+
+<Warning>
+  App-Only authentication cannot post tweets, access private data, or perform any write operations. If you need any of those capabilities, use OAuth 2.0 PKCE instead.
+</Warning>
+
+## Explore Each Method
+
+<CardGroup cols={3}>
+  <Card
+    title="OAuth 2.0 PKCE"
+    icon="shield-check"
+    href="/authentication/oauth2"
+  >
+    The recommended method for new apps. Supports read and write operations on behalf of users, with secure token refresh.
+  </Card>
+  <Card
+    title="OAuth 1.0a"
+    icon="key"
+    href="/authentication/oauth1"
+  >
+    The legacy user-context standard. Use it for existing integrations or v1.1 endpoints that require it.
+  </Card>
+  <Card
+    title="App-Only (Bearer Token)"
+    icon="bolt"
+    href="/authentication/app-only"
+  >
+    The simplest method for read-only access to public data. No user authorization flow required.
+  </Card>
+</CardGroup>

@@ -1,0 +1,142 @@
+{
+  "projectType": "api-service",
+  "projectName": "X Developer Platform",
+  "projectDescription": "The X Developer Platform provides APIs, tools, and resources that let developers build products and services on top of X (formerly Twitter).",
+  "theme": "luma",
+  "primaryColor": "#7c7c7c",
+  "lightColor": "#0f0f0f",
+  "darkColor": "#b4b4b4",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Docs",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "getting-started/access-levels",
+              "getting-started/developer-portal"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "authentication/overview",
+              "authentication/oauth2",
+              "authentication/oauth1",
+              "authentication/app-only"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/data-objects",
+              "concepts/fields-expansions",
+              "concepts/rate-limits",
+              "concepts/pagination"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/search-tweets",
+              "guides/post-tweets",
+              "guides/manage-users",
+              "guides/streaming",
+              "guides/webhooks"
+            ]
+          },
+          {
+            "group": "Tools & SDKs",
+            "pages": [
+              "tools/sdks",
+              "tools/postman",
+              "tools/sandbox"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Tweets",
+            "pages": [
+              "api-reference/tweets/lookup",
+              "api-reference/tweets/search",
+              "api-reference/tweets/timelines",
+              "api-reference/tweets/manage",
+              "api-reference/tweets/counts"
+            ]
+          },
+          {
+            "group": "Users & Follows",
+            "pages": [
+              "api-reference/users/lookup",
+              "api-reference/users/follows",
+              "api-reference/users/blocks-mutes"
+            ]
+          },
+          {
+            "group": "Spaces & Lists",
+            "pages": [
+              "api-reference/spaces/lookup",
+              "api-reference/lists/manage"
+            ]
+          },
+          {
+            "group": "Direct Messages",
+            "pages": [
+              "api-reference/dm/lookup",
+              "api-reference/dm/manage"
+            ]
+          },
+          {
+            "group": "Streams",
+            "pages": [
+              "api-reference/streams/filtered-stream",
+              "api-reference/streams/sampled-stream"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "X API v2 with full-archive tweet search",
+    "OAuth 2.0 and OAuth 1.0a authentication",
+    "Filtered and sampled real-time streaming",
+    "Tweets, Users, Spaces, Lists, and DMs endpoints",
+    "Tiered access: Free, Basic, Pro, Enterprise",
+    "Expansions and fields for flexible data retrieval",
+    "Rate limiting with per-endpoint quotas",
+    "Official SDKs for TypeScript/JavaScript and Python",
+    "Webhook-based Account Activity API",
+    "Postman collection and developer sandbox"
+  ],
+  "publicApiSurface": [
+    "GET /2/tweets/:id",
+    "GET /2/tweets/search/recent",
+    "GET /2/tweets/search/all",
+    "POST /2/tweets",
+    "DELETE /2/tweets/:id",
+    "GET /2/tweets/counts/recent",
+    "GET /2/users/:id",
+    "GET /2/users/by/username/:username",
+    "GET /2/users/:id/followers",
+    "GET /2/users/:id/following",
+    "POST /2/users/:id/following",
+    "GET /2/users/:id/tweets",
+    "GET /2/users/:id/mentions",
+    "GET /2/spaces/:id",
+    "GET /2/spaces/search",
+    "GET /2/lists/:id",
+    "POST /2/lists",
+    "GET /2/dm_conversations/:id/dm_events",
+    "POST /2/dm_conversations",
+    "GET /2/tweets/search/stream",
+    "GET /2/tweets/sample/stream"
+  ]
+}

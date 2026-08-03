@@ -1,0 +1,178 @@
+---
+title: "X Developer Portal: Manage Apps, Keys, and OAuth Setup"
+sidebarTitle: "Developer Portal"
+description: "Learn how to use the X Developer Portal to create projects, manage apps, locate API credentials, configure OAuth settings, and control app permissions."
+---
+
+The **X Developer Portal** at [developer.x.com/portal](https://developer.x.com/portal) is your central control panel for everything related to the X API. You use it to create and configure apps, manage credentials, set up OAuth 2.0 PKCE for user authentication, adjust app permissions, and monitor your API usage.
+
+---
+
+## Creating a project and app
+
+The X Developer Platform organizes your work into **projects**, each of which contains one or more **apps**. A project defines the use-case context for your apps; an app holds the credentials you use to authenticate API requests.
+
+<Steps>
+  <Step title="Create a project">
+    1. Sign in to the [Developer Portal](https://developer.x.com/portal/dashboard).
+    2. Click **+ Create Project** in the left sidebar.
+    3. Give your project a descriptive name — for example, *My Analytics Dashboard*.
+    4. Select the use-case category that best matches your intended application (e.g., *Making a bot*, *Doing academic research*, *Building a product*).
+    5. Add an optional description, then click **Next**.
+  </Step>
+  <Step title="Create an app inside the project">
+    1. After creating the project, click **+ Add App**.
+    2. Choose whether you want to create a new app or connect an existing one.
+    3. Enter a unique name for your app. This name appears on the OAuth consent screen that users see when they authorize your app.
+    4. Click **Next** — your app is created and the **Keys and tokens** screen appears immediately.
+  </Step>
+  <Step title="Save your credentials">
+    On the **Keys and tokens** screen, copy and securely store:
+    - **API Key** (Consumer Key)
+    - **API Key Secret** (Consumer Secret)
+    - **Bearer Token**
+
+    <Warning>
+      This is the **only time** the API Key Secret is displayed in full. If you navigate away without saving it, you must regenerate it — there is no way to retrieve the original value later. Store credentials in a password manager or secrets vault immediately.
+    </Warning>
+  </Step>
+</Steps>
+
+---
+
+## Locating your API keys and Bearer Token
+
+If you've already created an app and need to find your credentials again:
+
+1. Open the [Developer Portal](https://developer.x.com/portal/dashboard).
+2. Click your project name in the left sidebar, then click the app name beneath it.
+3. Select the **Keys and tokens** tab.
+
+You'll see three sections:
+
+| Credential | Used for |
+|---|---|
+| **API Key & Secret** | OAuth 1.0a app identification; generating user access tokens |
+| **Bearer Token** | App-only authentication for read-only requests (no user context) |
+| **Access Token & Secret** | OAuth 1.0a requests made on behalf of your own X account |
+
+<Note>
+  The **Bearer Token** is derived from your API Key and Secret. If you regenerate the API Key Secret, your existing Bearer Token is automatically invalidated. Generate a fresh Bearer Token from the same **Keys and tokens** page after any regeneration.
+</Note>
+
+---
+
+## Regenerating credentials
+
+You should regenerate credentials if you suspect they have been exposed or compromised.
+
+<Steps>
+  <Step title="Navigate to Keys and tokens">
+    From your app page in the Developer Portal, open the **Keys and tokens** tab.
+  </Step>
+  <Step title="Regenerate the credential">
+    Click **Regenerate** next to the credential you want to replace — **API Key & Secret**, **Bearer Token**, or **Access Token & Secret**.
+  </Step>
+  <Step title="Update your application">
+    Copy the new value immediately and update all environments (local, staging, production) where the old credential was stored. The old credential stops working as soon as you regenerate.
+  </Step>
+</Steps>
+
+<Warning>
+  Regenerating the **API Key & Secret** invalidates your **Bearer Token** and any **Access Token & Secret** pairs you previously generated. If your app is live, update all dependent services before regenerating to avoid an outage.
+</Warning>
+
+---
+
+## Configuring app settings
+
+### App permissions
+
+App permissions control what actions your app can take when a user authorizes it via OAuth. You configure permissions on the **Settings** tab of your app.
+
+| Permission level | What it allows |
+|---|---|
+| **Read** | Read tweets, timelines, user profiles, lists, and other public data |
+| **Read and Write** | All Read actions, plus posting tweets, liking, retweeting, and following |
+| **Read, Write, and Direct Messages** | All Read + Write actions, plus sending and reading Direct Messages |
+
+<Note>
+  Changing app permissions **does not** automatically update existing user access tokens. Users who have already authorized your app must re-authorize it to grant the new permission scope. Plan permission scope changes carefully for live applications.
+</Note>
+
+### Callback URLs
+
+If you use OAuth 2.0 or OAuth 1.0a to authenticate users, you must register every redirect URI your app will use.
+
+1. Go to **Settings** → **User authentication settings** → **Callback URI / Redirect URL**.
+2. Add each callback URL on a separate line (e.g., `https://yourapp.com/callback` and `http://localhost:3000/callback` for local development).
+3. Click **Save**.
+
+Any redirect to an unregistered URL will result in an error during the OAuth flow.
+
+### Website URL
+
+The **Website URL** is a required field on the **Settings** tab. Enter the public URL for your project or company. This URL appears on the OAuth consent screen and in your app's public profile.
+
+---
+
+## Setting up OAuth 2.0 PKCE for user authentication
+
+OAuth 2.0 with PKCE (Proof Key for Code Exchange) is the recommended flow for apps that authenticate end users — particularly single-page apps and mobile clients that cannot securely store a client secret.
+
+<Steps>
+  <Step title="Enable user authentication">
+    On your app's **Settings** tab, scroll to **User authentication settings** and click **Set up** (or **Edit** if already configured).
+  </Step>
+  <Step title="Select OAuth 2.0">
+    Under **OAuth 2.0**, toggle the switch to **On**. Leave **OAuth 1.0a** off unless your app specifically requires it (for example, to use legacy v1.1 endpoints).
+  </Step>
+  <Step title="Choose app type">
+    Select the **Type of App** that matches your architecture:
+    - **Web App, Automated App or Bot** — for server-side apps with a confidential client secret
+    - **Native App** — for mobile or desktop apps
+    - **Single Page App** — for browser-based apps; automatically enforces PKCE
+
+    <Tip>
+      Always use **PKCE** for public clients (Native App or Single Page App). PKCE ensures that even if the authorization code is intercepted, it cannot be exchanged for a token without the code verifier that only your app generated.
+    </Tip>
+  </Step>
+  <Step title="Set callback URLs and website URL">
+    Enter your registered callback URLs and your website URL in the fields provided. These must match exactly what your app sends during the authorization request.
+  </Step>
+  <Step title="Select scopes">
+    Choose the OAuth 2.0 scopes your app needs. Common scopes include:
+
+    | Scope | Description |
+    |---|---|
+    | `tweet.read` | Read tweets and timelines |
+    | `tweet.write` | Post, delete, like, and retweet |
+    | `users.read` | Read user profile information |
+    | `follows.read` | Read follower/following lists |
+    | `follows.write` | Follow and unfollow users |
+    | `dm.read` | Read Direct Messages |
+    | `dm.write` | Send Direct Messages |
+    | `offline.access` | Receive a refresh token for long-lived sessions |
+
+    Request only the scopes your app genuinely needs. Requesting unnecessary scopes reduces user trust on the consent screen.
+  </Step>
+  <Step title="Save and copy your Client ID">
+    Click **Save**. Your **Client ID** (and **Client Secret** for confidential clients) will be displayed. Copy these values — your Client ID is used in the authorization URL you redirect users to.
+  </Step>
+</Steps>
+
+---
+
+## Monitoring usage
+
+The Developer Portal's **Dashboard** tab shows real-time and historical API usage across your apps. Use it to track:
+
+- **Requests made** against your monthly tweet read cap
+- **Tweets posted** against your monthly write cap
+- **Rate limit headroom** by endpoint
+
+If your app is approaching its monthly cap, the dashboard will surface a warning. You can upgrade your tier directly from the dashboard without reconfiguring your apps or credentials.
+
+<Tip>
+  Bookmark [developer.x.com/portal/dashboard](https://developer.x.com/portal/dashboard) — it's your fastest way to catch credential issues, permission misconfigurations, and usage spikes before they affect your users.
+</Tip>

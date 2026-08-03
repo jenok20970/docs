@@ -1,0 +1,266 @@
+---
+title: "X API v2 SDKs for TypeScript, JavaScript, and Python"
+sidebarTitle: "SDKs"
+description: "Install and use the official X API SDKs for TypeScript, JavaScript, and Python to authenticate, query, and post to X programmatically."
+---
+
+The X Developer Platform provides first-party and community SDKs that wrap the X API v2, handling authentication, request signing, pagination, and response typing so you can focus on building your application.
+
+<CardGroup cols={2}>
+  <Card title="TypeScript / JavaScript" icon="js" href="#typescript--javascript-sdk">
+    Full TypeScript types included. Works in Node.js, Deno, and edge runtimes.
+  </Card>
+  <Card title="Python (Tweepy)" icon="python" href="#python-sdk-tweepy">
+    The most widely used Python library for the X API, with streaming and pagination helpers built in.
+  </Card>
+</CardGroup>
+
+---
+
+## TypeScript / JavaScript SDK
+
+The [`twitter-api-v2`](https://github.com/PLhery/node-twitter-api-v2) package is the most feature-complete TypeScript/JavaScript client for the X API v2. It ships with full TypeScript type definitions, supports every authentication method, and works in Node.js 16+.
+
+### Installation
+
+<CodeGroup>
+
+```bash npm
+npm install twitter-api-v2
+```
+
+```bash yarn
+yarn add twitter-api-v2
+```
+
+```bash pnpm
+pnpm add twitter-api-v2
+```
+
+</CodeGroup>
+
+### Initialize the client
+
+You can authenticate using a **Bearer Token** for app-only (read) access, or with **OAuth 1.0a** credentials for user-context (read/write) access.
+
+<CodeGroup>
+
+```typescript Bearer Token (app-only)
+import { TwitterApi } from 'twitter-api-v2';
+
+// App-only client — read-only access to public data
+const client = new TwitterApi(process.env.BEARER_TOKEN as string);
+
+// Shorthand for the read-only v2 API surface
+const readOnlyClient = client.readOnly;
+```
+
+```typescript OAuth 1.0a (user context)
+import { TwitterApi } from 'twitter-api-v2';
+
+// User-context client — read and write on behalf of the authenticated user
+const client = new TwitterApi({
+  appKey:            process.env.API_KEY as string,
+  appSecret:         process.env.API_KEY_SECRET as string,
+  accessToken:       process.env.ACCESS_TOKEN as string,
+  accessSecret:      process.env.ACCESS_TOKEN_SECRET as string,
+});
+
+const rwClient = client.readWrite;
+```
+
+</CodeGroup>
+
+> Store credentials in environment variables — never hard-code them in source files.
+
+### Examples
+
+#### Search recent tweets
+
+```typescript
+import { TwitterApi } from 'twitter-api-v2';
+
+const client = new TwitterApi(process.env.BEARER_TOKEN as string);
+
+const results = await client.v2.search('from:XDevelopers -is:retweet', {
+  max_results: 10,
+  'tweet.fields': ['created_at', 'author_id', 'public_metrics'],
+});
+
+for await (const tweet of results) {
+  console.log(`[${tweet.created_at}] ${tweet.text}`);
+}
+```
+
+#### Post a tweet
+
+```typescript
+import { TwitterApi } from 'twitter-api-v2';
+
+const client = new TwitterApi({
+  appKey:       process.env.API_KEY as string,
+  appSecret:    process.env.API_KEY_SECRET as string,
+  accessToken:  process.env.ACCESS_TOKEN as string,
+  accessSecret: process.env.ACCESS_TOKEN_SECRET as string,
+});
+
+const { data: tweet } = await client.v2.tweet('Hello from the X API v2! 🚀');
+console.log('Created tweet ID:', tweet.id);
+```
+
+#### Get a user by username
+
+```typescript
+import { TwitterApi } from 'twitter-api-v2';
+
+const client = new TwitterApi(process.env.BEARER_TOKEN as string);
+
+const { data: user } = await client.v2.userByUsername('XDevelopers', {
+  'user.fields': ['description', 'public_metrics', 'profile_image_url'],
+});
+
+console.log(`@${user.username} — ${user.description}`);
+console.log(`Followers: ${user.public_metrics?.followers_count}`);
+```
+
+### TypeScript types
+
+`twitter-api-v2` ships complete type definitions for every v2 endpoint — no `@types` package required. Request option objects, response payloads, and error shapes are all typed, giving you IDE auto-complete and compile-time safety.
+
+```typescript
+import type {
+  TweetV2,
+  UserV2,
+  Tweetv2SearchParams,
+} from 'twitter-api-v2';
+
+// Response objects are fully typed
+const { data }: { data: TweetV2 } = await client.v2.singleTweet('1234567890');
+```
+
+---
+
+## Python SDK (Tweepy)
+
+[Tweepy](https://github.com/tweepy/tweepy) is the most popular community-maintained Python library for the X API. It supports OAuth 1.0a, OAuth 2.0 Bearer Token, and OAuth 2.0 PKCE, and ships with a `Paginator` helper and a `StreamingClient` for filtered stream access.
+
+### Installation
+
+```bash
+pip install tweepy
+```
+
+### Initialize the client
+
+```python
+import tweepy
+import os
+
+# App-only client using a Bearer Token
+client = tweepy.Client(bearer_token=os.environ["BEARER_TOKEN"])
+
+# User-context client (read + write)
+client = tweepy.Client(
+    consumer_key=os.environ["API_KEY"],
+    consumer_secret=os.environ["API_KEY_SECRET"],
+    access_token=os.environ["ACCESS_TOKEN"],
+    access_token_secret=os.environ["ACCESS_TOKEN_SECRET"],
+)
+```
+
+### Examples
+
+#### Search recent tweets
+
+```python
+import tweepy
+import os
+
+client = tweepy.Client(bearer_token=os.environ["BEARER_TOKEN"])
+
+response = client.search_recent_tweets(
+    query="from:XDevelopers -is:retweet",
+    max_results=10,
+    tweet_fields=["created_at", "author_id", "public_metrics"],
+)
+
+for tweet in response.data or []:
+    print(f"{tweet.created_at}: {tweet.text}")
+```
+
+#### Create a tweet
+
+```python
+import tweepy
+import os
+
+client = tweepy.Client(
+    consumer_key=os.environ["API_KEY"],
+    consumer_secret=os.environ["API_KEY_SECRET"],
+    access_token=os.environ["ACCESS_TOKEN"],
+    access_token_secret=os.environ["ACCESS_TOKEN_SECRET"],
+)
+
+response = client.create_tweet(text="Hello from the X API v2! 🚀")
+print(f"Created tweet ID: {response.data['id']}")
+```
+
+#### Stream tweets in real time
+
+Use `tweepy.StreamingClient` to connect to the X API v2 [filtered stream](/api-reference/streams/filtered-stream) endpoint and receive tweets as they are published.
+
+```python
+import tweepy
+import os
+
+class MyStream(tweepy.StreamingClient):
+    def on_tweet(self, tweet):
+        print(tweet.text)
+
+    def on_error(self, status_code):
+        print(f"Stream error: {status_code}")
+        return False  # Stop the stream on error
+
+stream = MyStream(bearer_token=os.environ["BEARER_TOKEN"])
+
+# Add a rule to filter tweets containing "#buildinpublic"
+stream.add_rules(tweepy.StreamRule("#buildinpublic"))
+
+# Start streaming — runs until interrupted
+stream.filter(tweet_fields=["author_id", "created_at"])
+```
+
+<Tip>
+  Use `tweepy.Paginator` to automatically handle cursor-based pagination and iterate across all result pages without manually tracking `next_token` values.
+
+  ```python
+  for tweet in tweepy.Paginator(
+      client.search_recent_tweets,
+      query="from:XDevelopers",
+      tweet_fields=["created_at"],
+      max_results=100,
+  ).flatten(limit=500):
+      print(tweet.text)
+  ```
+</Tip>
+
+---
+
+## Official GitHub repositories
+
+<CardGroup cols={2}>
+  <Card
+    title="twitter-api-v2 (TypeScript)"
+    icon="github"
+    href="https://github.com/PLhery/node-twitter-api-v2"
+  >
+    Full-featured TypeScript/JavaScript client with v2 support, streaming, and OAuth helpers.
+  </Card>
+  <Card
+    title="Tweepy (Python)"
+    icon="github"
+    href="https://github.com/tweepy/tweepy"
+  >
+    Community-maintained Python library with pagination, streaming, and async support.
+  </Card>
+</CardGroup>

@@ -1,0 +1,310 @@
+---
+title: "OAuth 1.0a: Legacy User Authentication for X API v2"
+sidebarTitle: "OAuth 1.0a"
+description: "Implement OAuth 1.0a three-legged authentication for the X API, including request signing with HMAC-SHA1 and access token exchange."
+---
+
+OAuth 1.0a is the original user-context authentication protocol supported by the X (formerly Twitter) platform. It grants your application the ability to act on behalf of a user by exchanging a set of credentials — an **access token** and **access token secret** — that your app uses to sign each API request cryptographically.
+
+While OAuth 1.0a is fully supported, it is considered a **legacy protocol**. X introduced OAuth 2.0 with PKCE as the modern replacement, and all new applications should use that instead. OAuth 1.0a remains relevant for:
+
+- **Existing integrations** built before OAuth 2.0 was available on the platform.
+- **Twitter API v1.1 endpoints** that have not yet been migrated to v2 and still require OAuth 1.0a signatures.
+
+<Tip>
+  If you are starting a new project, use [OAuth 2.0 PKCE](/authentication/oauth2) instead. It is more secure, easier to implement in public clients, supports fine-grained scopes, and provides refresh tokens for long-lived sessions without requiring users to re-authorize.
+</Tip>
+
+## Required Credentials
+
+OAuth 1.0a uses four credentials that together identify both your app and the authorized user. You can find the app-level credentials in the [X Developer Portal](https://developer.x.com/en/portal/dashboard) under your app's **Keys and Tokens** tab.
+
+| Credential | Where to Find It | Identifies |
+|---|---|---|
+| **API Key** (Consumer Key) | Developer Portal → Keys and Tokens | Your application |
+| **API Key Secret** (Consumer Secret) | Developer Portal → Keys and Tokens | Your application |
+| **Access Token** | Obtained via OAuth flow or generated in the portal | The authorized user |
+| **Access Token Secret** | Obtained via OAuth flow or generated in the portal | The authorized user |
+
+<Warning>
+  Treat all four credentials as secrets. Never commit them to source control or expose them in client-side code. Use environment variables or a dedicated secrets manager.
+</Warning>
+
+## Three-Legged OAuth Flow
+
+The three-legged flow involves your app, the user, and X. It produces a pair of user-specific credentials (access token and access token secret) that you store and reuse for all subsequent API calls on that user's behalf.
+
+<Steps>
+  <Step title="Request a Temporary Token">
+  Make a signed `POST` request to the request token endpoint. X responds with a temporary `oauth_token` and `oauth_token_secret` that you use to build the authorization URL. These credentials are short-lived and single-use.
+
+  <CodeGroup>
+    ```python Python
+    import requests
+    from requests_oauthlib import OAuth1
+
+    REQUEST_TOKEN_URL = "https://api.twitter.com/oauth/request_token"
+    CALLBACK_URL = "http://localhost:3000/callback"
+
+    # requests_oauthlib handles HMAC-SHA1 signing automatically
+    oauth = OAuth1(
+        client_key="YOUR_API_KEY",
+        client_secret="YOUR_API_KEY_SECRET",
+        callback_uri=CALLBACK_URL,
+    )
+
+    response = requests.post(REQUEST_TOKEN_URL, auth=oauth)
+    response.raise_for_status()
+
+    # Parse the URL-encoded response body
+    from urllib.parse import parse_qs
+    credentials = parse_qs(response.text)
+
+    oauth_token = credentials["oauth_token"][0]
+    oauth_token_secret = credentials["oauth_token_secret"][0]
+
+    # Store oauth_token_secret in your session — you'll need it in step 3
+    print(f"Request token: {oauth_token}")
+    ```
+
+    ```javascript JavaScript
+    import OAuth from "oauth-1.0a";
+    import crypto from "crypto";
+    import fetch from "node-fetch";
+
+    const oauth = new OAuth({
+      consumer: {
+        key: "YOUR_API_KEY",
+        secret: "YOUR_API_KEY_SECRET",
+      },
+      signature_method: "HMAC-SHA1",
+      hash_function(base_string, key) {
+        return crypto.createHmac("sha1", key).update(base_string).digest("base64");
+      },
+    });
+
+    const requestTokenUrl = "https://api.twitter.com/oauth/request_token";
+    const callbackUrl = "http://localhost:3000/callback";
+
+    const requestData = {
+      url: requestTokenUrl,
+      method: "POST",
+      data: { oauth_callback: callbackUrl },
+    };
+
+    const headers = oauth.toHeader(oauth.authorize(requestData));
+
+    const response = await fetch(requestTokenUrl, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: `oauth_callback=${encodeURIComponent(callbackUrl)}`,
+    });
+
+    const body = await response.text();
+    const params = new URLSearchParams(body);
+
+    const oauthToken = params.get("oauth_token");
+    const oauthTokenSecret = params.get("oauth_token_secret");
+
+    // Store oauthTokenSecret in your session — you'll need it in step 3
+    console.log("Request token:", oauthToken);
+    ```
+  </CodeGroup>
+  </Step>
+
+  <Step title="Redirect the User to the Authorization Page">
+  Build the authorization URL using the `oauth_token` from step 1 and redirect the user to it. X displays a page asking the user to authorize your app.
+
+  <CodeGroup>
+    ```python Python
+    import urllib.parse
+
+    AUTHORIZE_URL = "https://api.twitter.com/oauth/authenticate"
+
+    authorize_url = f"{AUTHORIZE_URL}?{urllib.parse.urlencode({'oauth_token': oauth_token})}"
+
+    # Redirect the user to authorize_url
+    # e.g., in Flask: return redirect(authorize_url)
+    print("Redirect user to:", authorize_url)
+    ```
+
+    ```javascript JavaScript
+    const authorizeUrl =
+      `https://api.twitter.com/oauth/authenticate?oauth_token=${oauthToken}`;
+
+    // Redirect the user — e.g., in Express:
+    // res.redirect(authorizeUrl);
+    console.log("Redirect user to:", authorizeUrl);
+    ```
+  </CodeGroup>
+
+  <Note>
+    Use `/oauth/authenticate` to redirect returning users automatically if they have already authorized your app. Use `/oauth/authorize` if you always want the user to see the authorization screen, regardless of prior approval.
+  </Note>
+  </Step>
+
+  <Step title="Handle the Callback and Exchange for an Access Token">
+  After the user approves your app, X redirects them to your callback URL with `oauth_token` and `oauth_verifier` query parameters. Use these — along with the `oauth_token_secret` from step 1 — to exchange for a permanent access token and access token secret.
+
+  <CodeGroup>
+    ```python Python
+    import requests
+    from requests_oauthlib import OAuth1
+    from urllib.parse import parse_qs
+
+    ACCESS_TOKEN_URL = "https://api.twitter.com/oauth/access_token"
+
+    # oauth_token and oauth_verifier come from the callback URL query params
+    # oauth_token_secret is the value you stored in the session during step 1
+
+    oauth = OAuth1(
+        client_key="YOUR_API_KEY",
+        client_secret="YOUR_API_KEY_SECRET",
+        resource_owner_key=oauth_token,
+        resource_owner_secret=oauth_token_secret,  # from step 1
+        verifier=oauth_verifier,
+    )
+
+    response = requests.post(ACCESS_TOKEN_URL, auth=oauth)
+    response.raise_for_status()
+
+    credentials = parse_qs(response.text)
+    access_token = credentials["oauth_token"][0]
+    access_token_secret = credentials["oauth_token_secret"][0]
+    user_id = credentials["user_id"][0]
+    screen_name = credentials["screen_name"][0]
+
+    print(f"Authenticated as: @{screen_name} (ID: {user_id})")
+    # Store access_token and access_token_secret securely — use them for all future requests
+    ```
+
+    ```javascript JavaScript
+    import OAuth from "oauth-1.0a";
+    import crypto from "crypto";
+    import fetch from "node-fetch";
+
+    // oauthToken and oauthVerifier come from the callback URL query params
+    // oauthTokenSecret is the value you stored in the session during step 1
+
+    const oauth = new OAuth({
+      consumer: {
+        key: "YOUR_API_KEY",
+        secret: "YOUR_API_KEY_SECRET",
+      },
+      signature_method: "HMAC-SHA1",
+      hash_function(base_string, key) {
+        return crypto.createHmac("sha1", key).update(base_string).digest("base64");
+      },
+    });
+
+    const accessTokenUrl = "https://api.twitter.com/oauth/access_token";
+    const token = { key: oauthToken, secret: oauthTokenSecret };
+
+    const requestData = {
+      url: accessTokenUrl,
+      method: "POST",
+      data: { oauth_verifier: oauthVerifier },
+    };
+
+    const headers = oauth.toHeader(oauth.authorize(requestData, token));
+
+    const response = await fetch(accessTokenUrl, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: `oauth_verifier=${encodeURIComponent(oauthVerifier)}`,
+    });
+
+    const body = await response.text();
+    const params = new URLSearchParams(body);
+
+    const accessToken = params.get("oauth_token");
+    const accessTokenSecret = params.get("oauth_token_secret");
+    const screenName = params.get("screen_name");
+
+    console.log(`Authenticated as: @${screenName}`);
+    // Store accessToken and accessTokenSecret securely
+    ```
+  </CodeGroup>
+  </Step>
+</Steps>
+
+## Signing Requests with HMAC-SHA1
+
+Every OAuth 1.0a API request must be signed. The signature proves that the request was made by the holder of the credentials and that it hasn't been tampered with in transit. The signing process works as follows:
+
+1. **Collect parameters**: Gather all OAuth protocol parameters (`oauth_consumer_key`, `oauth_nonce`, `oauth_signature_method`, `oauth_timestamp`, `oauth_token`, `oauth_version`) plus any request body or query parameters.
+2. **Build the signature base string**: Concatenate the HTTP method, the percent-encoded request URL, and the percent-encoded sorted parameter string with `&` separators.
+3. **Derive the signing key**: Concatenate your API Key Secret and the Access Token Secret, separated by `&`, both percent-encoded.
+4. **Compute the signature**: Run HMAC-SHA1 over the signature base string using the signing key, then Base64-encode the result.
+5. **Attach the Authorization header**: Include all OAuth parameters and the computed signature in the `Authorization: OAuth …` header.
+
+In practice, you should use a well-maintained OAuth 1.0a library rather than implementing signing manually.
+
+## Making Authenticated Requests
+
+<CodeGroup>
+  ```python Python
+  import tweepy
+
+  # Tweepy handles OAuth 1.0a signing transparently
+  client = tweepy.Client(
+      consumer_key="YOUR_API_KEY",
+      consumer_secret="YOUR_API_KEY_SECRET",
+      access_token="USER_ACCESS_TOKEN",
+      access_token_secret="USER_ACCESS_TOKEN_SECRET",
+  )
+
+  # Post a tweet on behalf of the user
+  response = client.create_tweet(text="Hello from the X API!")
+  print(f"Tweet posted with ID: {response.data['id']}")
+
+  # Fetch the authenticated user's timeline
+  user = client.get_me()
+  print(f"Authenticated as: @{user.data.username}")
+  ```
+
+  ```javascript JavaScript
+  import OAuth from "oauth-1.0a";
+  import crypto from "crypto";
+  import fetch from "node-fetch";
+
+  const oauth = new OAuth({
+    consumer: {
+      key: "YOUR_API_KEY",
+      secret: "YOUR_API_KEY_SECRET",
+    },
+    signature_method: "HMAC-SHA1",
+    hash_function(base_string, key) {
+      return crypto.createHmac("sha1", key).update(base_string).digest("base64");
+    },
+  });
+
+  const token = {
+    key: "USER_ACCESS_TOKEN",
+    secret: "USER_ACCESS_TOKEN_SECRET",
+  };
+
+  // Example: post a tweet using the v2 endpoint
+  const url = "https://api.twitter.com/2/tweets";
+  const requestData = { url, method: "POST" };
+  const authHeader = oauth.toHeader(oauth.authorize(requestData, token));
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      ...authHeader,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ text: "Hello from the X API!" }),
+  });
+
+  const data = await response.json();
+  console.log("Tweet posted:", data.data.id);
+  ```
+</CodeGroup>

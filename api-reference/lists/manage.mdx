@@ -1,0 +1,530 @@
+---
+title: "Manage X Lists via the API v2: Create, Update, Delete"
+sidebarTitle: "Manage Lists"
+description: "Create, update, delete, and manage members of X Lists. Retrieve List details, Tweets, and members using the X API v2 Lists endpoints."
+---
+
+## Overview
+
+X Lists are curated groups of accounts whose Tweets you can read in a dedicated timeline. The Lists endpoints let you retrieve List details, manage members, view Tweets from a List, and create or delete Lists. Write operations require OAuth 2.0 user context with the `list.write` scope.
+
+**Base URL:** `https://api.twitter.com`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/2/lists/:id` | Get a List's details |
+| `GET` | `/2/users/:id/owned_lists` | Lists owned by a user |
+| `GET` | `/2/users/:id/followed_lists` | Lists a user follows |
+| `GET` | `/2/lists/:id/tweets` | Get Tweets from a List |
+| `GET` | `/2/lists/:id/members` | Get members of a List |
+| `POST` | `/2/lists` | Create a List |
+| `PUT` | `/2/lists/:id` | Update a List |
+| `DELETE` | `/2/lists/:id` | Delete a List |
+| `POST` | `/2/lists/:id/members` | Add a member to a List |
+| `DELETE` | `/2/lists/:id/members/:user_id` | Remove a member from a List |
+
+---
+
+## GET /2/lists/:id
+
+Returns the details of a specified List.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the List to retrieve.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="list.fields" type="string">
+  Comma-separated list of List fields to return. Supported values: `id`, `name`, `created_at`, `description`, `follower_count`, `member_count`, `owner_id`, `private`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects. Supported value: `owner_id` — includes the full user object of the List owner in `includes.users`.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  User fields to include when expanding `owner_id`.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/lists/84839422?list.fields=id,name,description,member_count,follower_count,owner_id,private" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+```python Python
+import requests
+
+bearer_token = "YOUR_BEARER_TOKEN"
+list_id = "84839422"
+
+url = f"https://api.twitter.com/2/lists/{list_id}"
+params = {
+    "list.fields": "id,name,description,member_count,follower_count,owner_id,private"
+}
+headers = {"Authorization": f"Bearer {bearer_token}"}
+
+response = requests.get(url, params=params, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+---
+
+## GET /2/users/:id/owned_lists
+
+Returns all Lists owned by the specified user.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the user whose owned Lists you want to retrieve.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of results per page. Accepted values: `1`–`100`. Defaults to `100`.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Token to retrieve the next page of results.
+</ParamField>
+
+<ParamField query="list.fields" type="string">
+  List fields to include. Supported values: `id`, `name`, `created_at`, `description`, `follower_count`, `member_count`, `owner_id`, `private`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Supported value: `owner_id`.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/users/2244994945/owned_lists?list.fields=id,name,member_count" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+</CodeGroup>
+
+---
+
+## GET /2/users/:id/followed_lists
+
+Returns all Lists that the specified user follows.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the user whose followed Lists you want to retrieve.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of results per page. Accepted values: `1`–`100`. Defaults to `100`.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Token to retrieve the next page of results.
+</ParamField>
+
+<ParamField query="list.fields" type="string">
+  List fields to include.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Supported value: `owner_id`.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/users/2244994945/followed_lists?list.fields=id,name,member_count,owner_id" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+</CodeGroup>
+
+---
+
+## GET /2/lists/:id/tweets
+
+Returns Tweets from the specified List timeline.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the List whose Tweets you want to retrieve.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of Tweets per page. Accepted values: `1`–`100`. Defaults to `100`.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Token to retrieve the next page of Tweets.
+</ParamField>
+
+<ParamField query="tweet.fields" type="string">
+  Tweet fields to include. For example: `id`, `text`, `created_at`, `public_metrics`, `author_id`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects. For example: `author_id` to include the Tweet author's user object.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  User fields to include when expanding `author_id`.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/lists/84839422/tweets?max_results=10&tweet.fields=id,text,created_at,public_metrics" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+</CodeGroup>
+
+---
+
+## GET /2/lists/:id/members
+
+Returns user objects for all members of a specified List.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the List whose members you want to retrieve.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of results per page. Accepted values: `1`–`100`. Defaults to `100`.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Token to retrieve the next page of results.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  User fields to include. Supported values: `id`, `name`, `username`, `created_at`, `description`, `profile_image_url`, `public_metrics`, `verified`.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/lists/84839422/members?user.fields=name,username,public_metrics" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+</CodeGroup>
+
+---
+
+## POST /2/lists
+
+Creates a new List on behalf of the authenticated user. Requires OAuth 2.0 with the `list.write` scope.
+
+### Request Body
+
+<ParamField body="name" type="string" required>
+  The name of the List. Maximum 25 characters.
+</ParamField>
+
+<ParamField body="description" type="string">
+  A brief description of the List. Maximum 100 characters.
+</ParamField>
+
+<ParamField body="private" type="boolean">
+  When `true`, the List is only visible to the owner. Defaults to `false` (public).
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/lists" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "AI Researchers",
+    "description": "Top voices in AI and machine learning",
+    "private": false
+  }'
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+
+url = "https://api.twitter.com/2/lists"
+payload = {
+    "name": "AI Researchers",
+    "description": "Top voices in AI and machine learning",
+    "private": False
+}
+headers = {
+    "Authorization": f"Bearer {oauth2_token}",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+
+```javascript Node.js
+const axios = require("axios");
+
+const oauth2Token = "YOUR_OAUTH2_USER_TOKEN";
+
+axios
+  .post(
+    "https://api.twitter.com/2/lists",
+    {
+      name: "AI Researchers",
+      description: "Top voices in AI and machine learning",
+      private: false,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${oauth2Token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  )
+  .then((res) => console.log(res.data))
+  .catch((err) => console.error(err));
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "id": "1234567890123456789",
+    "name": "AI Researchers"
+  }
+}
+```
+
+---
+
+## PUT /2/lists/:id
+
+Updates the metadata of an existing List. Requires OAuth 2.0 with the `list.write` scope. You can update the name, description, and privacy setting.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the List to update. You must own the List.
+</ParamField>
+
+### Request Body
+
+<ParamField body="name" type="string">
+  Updated name for the List. Maximum 25 characters.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Updated description. Maximum 100 characters.
+</ParamField>
+
+<ParamField body="private" type="boolean">
+  Set to `true` to make the List private, or `false` to make it public.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X PUT "https://api.twitter.com/2/lists/1234567890123456789" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "ML Researchers",
+    "description": "Leading voices in machine learning",
+    "private": true
+  }'
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "updated": true
+  }
+}
+```
+
+---
+
+## DELETE /2/lists/:id
+
+Permanently deletes the specified List. Requires OAuth 2.0 with the `list.write` scope. You must own the List.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the List to delete.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE "https://api.twitter.com/2/lists/1234567890123456789" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN"
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "deleted": true
+  }
+}
+```
+
+---
+
+## POST /2/lists/:id/members
+
+Adds a user to the specified List. Requires OAuth 2.0 with the `list.write` scope. You must own the List.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the List to add the member to.
+</ParamField>
+
+### Request Body
+
+<ParamField body="user_id" type="string" required>
+  The numeric ID of the user to add to the List.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/lists/1234567890123456789/members" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "2244994945"}'
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+list_id = "1234567890123456789"
+
+url = f"https://api.twitter.com/2/lists/{list_id}/members"
+payload = {"user_id": "2244994945"}
+headers = {
+    "Authorization": f"Bearer {oauth2_token}",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "is_member": true
+  }
+}
+```
+
+---
+
+## DELETE /2/lists/:id/members/:user_id
+
+Removes a user from the specified List. Requires OAuth 2.0 with the `list.write` scope. You must own the List.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the List to remove the member from.
+</ParamField>
+
+<ParamField path="user_id" type="string" required>
+  The numeric ID of the user to remove from the List.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE "https://api.twitter.com/2/lists/1234567890123456789/members/2244994945" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN"
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "is_member": false
+  }
+}
+```
+
+---
+
+## List Object Reference
+
+<ResponseField name="id" type="string">
+  The unique numeric identifier of the List.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The name of the List.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  The description of the List, as set by the owner.
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  The UTC datetime when the List was created.
+</ResponseField>
+
+<ResponseField name="owner_id" type="string">
+  The numeric user ID of the account that owns the List. Expand with `expansions=owner_id` to retrieve the full user object.
+</ResponseField>
+
+<ResponseField name="member_count" type="integer">
+  The number of users who are members of the List.
+</ResponseField>
+
+<ResponseField name="follower_count" type="integer">
+  The number of users who follow the List.
+</ResponseField>
+
+<ResponseField name="private" type="boolean">
+  When `true`, the List is private and only visible to the owner.
+</ResponseField>

@@ -1,0 +1,435 @@
+---
+title: "Filtered Stream: Receive Real-Time Tweets Matching Rules"
+sidebarTitle: "Filtered Stream"
+description: "Connect to a persistent real-time stream and receive Tweets matching your custom filter rules instantly as they are posted on X, using the X API v2."
+---
+
+## Overview
+
+The Filtered Stream endpoint delivers a continuous stream of public Tweets that match one or more rules you define. Unlike search, you don't poll — you open a single persistent HTTP connection and receive matching Tweets as they are published, with latency typically under a second.
+
+**Base URL:** `https://api.twitter.com`
+
+**Authentication:** Bearer Token (app-only).
+
+Rules are managed separately from the stream connection. You add, remove, and list rules while disconnected, then connect to the stream to start receiving matching Tweets.
+
+---
+
+## GET /2/tweets/search/stream
+
+Opens a persistent HTTP connection to the filtered stream. The server sends matching Tweets as newline-delimited JSON. Empty newlines (heartbeats) are sent periodically to keep the connection alive.
+
+### Query Parameters
+
+<ParamField query="tweet.fields" type="string">
+  Comma-separated list of Tweet fields to include in each streamed Tweet object. For example: `id`, `text`, `created_at`, `author_id`, `public_metrics`, `entities`, `attachments`, `geo`, `lang`, `source`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects inline. Supported values: `author_id`, `referenced_tweets.id`, `attachments.media_keys`, `geo.place_id`, `entities.mentions.username`.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  User fields to include when expanding `author_id`. For example: `name`, `username`, `profile_image_url`, `public_metrics`.
+</ParamField>
+
+<ParamField query="media.fields" type="string">
+  Media fields to include when expanding `attachments.media_keys`. For example: `type`, `url`, `preview_image_url`, `width`, `height`, `alt_text`.
+</ParamField>
+
+<ParamField query="backfill_minutes" type="integer">
+  **Pro+ only.** Number of minutes of missed Tweets to replay after reconnecting. Accepted values: `1`–`5`. Requires the `backfill` feature to be enabled on your developer account.
+</ParamField>
+
+### Connect to the Stream
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/tweets/search/stream?tweet.fields=id,text,created_at,author_id&expansions=author_id&user.fields=name,username" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+```python Python
+import requests
+import json
+
+bearer_token = "YOUR_BEARER_TOKEN"
+
+url = "https://api.twitter.com/2/tweets/search/stream"
+params = {
+    "tweet.fields": "id,text,created_at,author_id",
+    "expansions": "author_id",
+    "user.fields": "name,username"
+}
+headers = {"Authorization": f"Bearer {bearer_token}"}
+
+with requests.get(url, params=params, headers=headers, stream=True) as response:
+    response.raise_for_status()
+    for line in response.iter_lines():
+        if line:  # Skip empty heartbeat lines
+            tweet = json.loads(line)
+            print(json.dumps(tweet, indent=2))
+```
+
+```javascript Node.js
+const https = require("https");
+
+const bearerToken = "YOUR_BEARER_TOKEN";
+const params = new URLSearchParams({
+  "tweet.fields": "id,text,created_at,author_id",
+  expansions: "author_id",
+  "user.fields": "name,username",
+});
+
+const options = {
+  hostname: "api.twitter.com",
+  path: `/2/tweets/search/stream?${params}`,
+  method: "GET",
+  headers: {
+    Authorization: `Bearer ${bearerToken}`,
+  },
+};
+
+const req = https.request(options, (res) => {
+  let buffer = "";
+  res.on("data", (chunk) => {
+    buffer += chunk.toString();
+    const lines = buffer.split("\n");
+    buffer = lines.pop(); // Keep incomplete line in buffer
+    for (const line of lines) {
+      if (line.trim()) {
+        const tweet = JSON.parse(line);
+        console.log(JSON.stringify(tweet, null, 2));
+      }
+    }
+  });
+});
+
+req.on("error", (err) => console.error(err));
+req.end();
+```
+</CodeGroup>
+
+### Stream Response Format
+
+Each matching Tweet arrives as a single line of JSON:
+
+```json
+{
+  "data": {
+    "id": "1585866435553656832",
+    "text": "Just shipped a new feature using the X API v2 filtered stream!",
+    "created_at": "2023-11-15T18:22:10.000Z",
+    "author_id": "2244994945"
+  },
+  "matching_rules": [
+    {
+      "id": "1273636687768285186",
+      "tag": "developer tweets"
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "name": "X Developers",
+        "username": "XDevelopers"
+      }
+    ]
+  }
+}
+```
+
+The `matching_rules` array tells you which of your rules caused this Tweet to be delivered.
+
+---
+
+## Managing Rules
+
+Rules determine which Tweets your stream receives. You can have multiple active rules simultaneously, and each delivered Tweet includes a `matching_rules` array listing every rule it matched.
+
+<Note>
+  **Rule limits by access tier:**
+  - **Basic:** 25 concurrent rules
+  - **Pro:** 1,000 concurrent rules
+
+  Each rule value can be up to 512 characters (Basic) or 1,024 characters (Pro).
+</Note>
+
+### GET /2/tweets/search/stream/rules
+
+Returns all currently active rules for your stream.
+
+#### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/tweets/search/stream/rules" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+```python Python
+import requests
+
+bearer_token = "YOUR_BEARER_TOKEN"
+
+url = "https://api.twitter.com/2/tweets/search/stream/rules"
+headers = {"Authorization": f"Bearer {bearer_token}"}
+
+response = requests.get(url, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+#### Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "1273636687768285186",
+      "value": "xapi has:links lang:en",
+      "tag": "X API links"
+    },
+    {
+      "id": "1273636687768285187",
+      "value": "\"developer tools\" -is:retweet",
+      "tag": "developer tools"
+    }
+  ],
+  "meta": {
+    "sent": "2023-11-15T18:00:00.000Z",
+    "result_count": 2
+  }
+}
+```
+
+---
+
+### POST /2/tweets/search/stream/rules — Add Rules
+
+Adds one or more new rules to your filtered stream. Rules take effect immediately; you do not need to reconnect.
+
+#### Request Body
+
+<ParamField body="add" type="array of objects" required>
+  Array of rule objects to add.
+
+  <Expandable title="rule object fields">
+    <ParamField body="value" type="string" required>
+      The rule operator string. Uses the same syntax as the full-archive search query language. For example: `"X API" has:media lang:en -is:retweet`.
+    </ParamField>
+    <ParamField body="tag" type="string">
+      An optional human-readable label for the rule. Tags appear in `matching_rules` when a Tweet is delivered. Maximum 128 characters.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/tweets/search/stream/rules" \
+  -H "Authorization: Bearer $BEARER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "add": [
+      {
+        "value": "\"X API\" has:media lang:en -is:retweet",
+        "tag": "X API media tweets"
+      },
+      {
+        "value": "from:XDevelopers",
+        "tag": "XDevelopers account"
+      }
+    ]
+  }'
+```
+
+```python Python
+import requests
+
+bearer_token = "YOUR_BEARER_TOKEN"
+
+url = "https://api.twitter.com/2/tweets/search/stream/rules"
+payload = {
+    "add": [
+        {
+            "value": '"X API" has:media lang:en -is:retweet',
+            "tag": "X API media tweets"
+        },
+        {
+            "value": "from:XDevelopers",
+            "tag": "XDevelopers account"
+        }
+    ]
+}
+headers = {
+    "Authorization": f"Bearer {bearer_token}",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+#### Example Response
+
+```json
+{
+  "data": [
+    {
+      "value": "\"X API\" has:media lang:en -is:retweet",
+      "tag": "X API media tweets",
+      "id": "1273636687768285188"
+    },
+    {
+      "value": "from:XDevelopers",
+      "tag": "XDevelopers account",
+      "id": "1273636687768285189"
+    }
+  ],
+  "meta": {
+    "sent": "2023-11-15T18:05:00.000Z",
+    "summary": {
+      "created": 2,
+      "not_created": 0,
+      "valid": 2,
+      "invalid": 0
+    }
+  }
+}
+```
+
+---
+
+### POST /2/tweets/search/stream/rules — Delete Rules
+
+Deletes one or more existing rules by their IDs. Use the same endpoint as adding rules, but with a `delete` key in the request body instead of `add`.
+
+#### Request Body
+
+<ParamField body="delete" type="object" required>
+  Object containing the IDs of rules to remove.
+
+  <Expandable title="delete fields">
+    <ParamField body="ids" type="array of strings" required>
+      Array of rule IDs to delete. Retrieve rule IDs from the GET rules endpoint.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+#### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/tweets/search/stream/rules" \
+  -H "Authorization: Bearer $BEARER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "delete": {
+      "ids": ["1273636687768285188", "1273636687768285189"]
+    }
+  }'
+```
+
+```python Python
+import requests
+
+bearer_token = "YOUR_BEARER_TOKEN"
+
+url = "https://api.twitter.com/2/tweets/search/stream/rules"
+payload = {
+    "delete": {
+        "ids": ["1273636687768285188", "1273636687768285189"]
+    }
+}
+headers = {
+    "Authorization": f"Bearer {bearer_token}",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+#### Example Response
+
+```json
+{
+  "meta": {
+    "sent": "2023-11-15T18:10:00.000Z",
+    "summary": {
+      "deleted": 2,
+      "not_deleted": 0
+    }
+  }
+}
+```
+
+---
+
+## Reconnection Strategy
+
+Network interruptions are normal when maintaining long-lived HTTP connections. Implement exponential backoff to reconnect without overwhelming the API.
+
+<Steps>
+  <Step title="Detect the disconnect">
+    Your HTTP client will raise an exception or return EOF when the connection drops. Log the event with a timestamp.
+  </Step>
+  <Step title="Wait before reconnecting">
+    Start with a 1-second wait. If the first reconnect attempt fails, double the wait time (2s, 4s, 8s, ...). Cap the maximum wait at 60 seconds.
+  </Step>
+  <Step title="Reconnect">
+    Re-issue the same `GET /2/tweets/search/stream` request with the same parameters. Your rules remain active across disconnects.
+  </Step>
+  <Step title="Use backfill_minutes (Pro+)">
+    On reconnect, include `backfill_minutes=5` to receive Tweets you missed during the disconnected period, up to 5 minutes of history.
+  </Step>
+</Steps>
+
+<CodeGroup>
+```python Python
+import requests
+import json
+import time
+
+bearer_token = "YOUR_BEARER_TOKEN"
+
+def connect_to_stream(backfill_minutes=None):
+    url = "https://api.twitter.com/2/tweets/search/stream"
+    params = {"tweet.fields": "id,text,created_at,author_id"}
+    if backfill_minutes:
+        params["backfill_minutes"] = backfill_minutes
+    headers = {"Authorization": f"Bearer {bearer_token}"}
+
+    with requests.get(url, params=params, headers=headers, stream=True) as response:
+        response.raise_for_status()
+        for line in response.iter_lines():
+            if line:
+                yield json.loads(line)
+
+def run_stream():
+    wait_time = 1
+    while True:
+        try:
+            for tweet in connect_to_stream(backfill_minutes=5):
+                print(tweet)
+                wait_time = 1  # Reset backoff on successful data
+        except Exception as e:
+            print(f"Stream error: {e}. Reconnecting in {wait_time}s...")
+            time.sleep(wait_time)
+            wait_time = min(wait_time * 2, 60)
+
+run_stream()
+```
+</CodeGroup>
+
+---
+
+## Heartbeats
+
+The server sends an empty newline (heartbeat) every 20 seconds when no matching Tweets are being delivered. Use heartbeats to distinguish an idle stream from a dropped connection — if you receive no data (including heartbeats) for more than 30 seconds, treat the connection as dropped and reconnect.

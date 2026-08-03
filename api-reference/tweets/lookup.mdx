@@ -1,0 +1,279 @@
+---
+title: "GET /2/tweets — Fetch Single or Batch Tweets by ID"
+sidebarTitle: "Lookup Tweets"
+description: "Retrieve one or up to 100 tweets by their unique IDs. Supports tweet.fields, user expansions, and media fields for rich, detailed response data."
+---
+
+The tweet lookup endpoints let you fetch the full details of one or many tweets by their unique IDs. You can request specific fields — such as public engagement metrics, language detection, and geo data — and expand related objects like the author's profile or attached media in a single request.
+
+## GET /2/tweets/:id
+
+Retrieve a single tweet by its ID.
+
+```
+GET https://api.twitter.com/2/tweets/:id
+```
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique ID of the tweet you want to retrieve. For example, `1460323737035677698`.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="tweet.fields" type="string">
+  Comma-separated list of fields to include on the returned tweet object. Available values:
+  `attachments`, `author_id`, `context_annotations`, `conversation_id`, `created_at`,
+  `edit_controls`, `entities`, `geo`, `id`, `in_reply_to_user_id`, `lang`,
+  `public_metrics`, `referenced_tweets`, `reply_settings`, `source`, `text`, `withheld`
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Comma-separated list of expansion keys to include related objects in the `includes` response object. Available values:
+  `author_id`, `attachments.media_keys`, `attachments.poll_ids`,
+  `entities.mentions.username`, `geo.place_id`, `in_reply_to_user_id`,
+  `referenced_tweets.id`, `referenced_tweets.id.author_id`
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  Comma-separated list of fields to return on expanded user objects. Requires `author_id` or another user-based expansion. Available values:
+  `created_at`, `description`, `id`, `location`, `name`, `profile_image_url`,
+  `protected`, `public_metrics`, `url`, `username`, `verified`
+</ParamField>
+
+<ParamField query="media.fields" type="string">
+  Comma-separated list of fields to return on expanded media objects. Requires `attachments.media_keys` in `expansions`. Available values:
+  `duration_ms`, `height`, `media_key`, `preview_image_url`, `public_metrics`,
+  `type`, `url`, `width`
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://api.twitter.com/2/tweets/1460323737035677698?\
+tweet.fields=created_at,public_metrics&\
+expansions=author_id&\
+user.fields=name,username" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "id": "1460323737035677698",
+    "text": "Introducing the new X Developer Platform — build what's next.",
+    "created_at": "2021-11-15T18:23:01.000Z",
+    "public_metrics": {
+      "retweet_count": 812,
+      "reply_count": 143,
+      "like_count": 4201,
+      "quote_count": 98,
+      "bookmark_count": 320,
+      "impression_count": 98540
+    },
+    "author_id": "2244994945",
+    "edit_history_tweet_ids": ["1460323737035677698"]
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "name": "X Dev",
+        "username": "XDevelopers"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## GET /2/tweets
+
+Retrieve up to 100 tweets in a single request by passing a comma-separated list of tweet IDs.
+
+```
+GET https://api.twitter.com/2/tweets
+```
+
+### Query Parameters
+
+<ParamField query="ids" type="string" required>
+  A comma-separated list of tweet IDs to look up. You may request up to **100** IDs per call.
+  For example: `ids=1460323737035677698,1460323737035677699`
+</ParamField>
+
+<ParamField query="tweet.fields" type="string">
+  Comma-separated list of fields to include on each returned tweet object. Available values:
+  `attachments`, `author_id`, `context_annotations`, `conversation_id`, `created_at`,
+  `edit_controls`, `entities`, `geo`, `id`, `in_reply_to_user_id`, `lang`,
+  `public_metrics`, `referenced_tweets`, `reply_settings`, `source`, `text`, `withheld`
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Comma-separated list of expansion keys. Available values:
+  `author_id`, `attachments.media_keys`, `attachments.poll_ids`,
+  `entities.mentions.username`, `geo.place_id`, `in_reply_to_user_id`,
+  `referenced_tweets.id`, `referenced_tweets.id.author_id`
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  Comma-separated list of user fields to return on expanded user objects. Available values:
+  `created_at`, `description`, `id`, `location`, `name`, `profile_image_url`,
+  `protected`, `public_metrics`, `url`, `username`, `verified`
+</ParamField>
+
+<ParamField query="media.fields" type="string">
+  Comma-separated list of media fields to return on expanded media objects. Available values:
+  `duration_ms`, `height`, `media_key`, `preview_image_url`, `public_metrics`,
+  `type`, `url`, `width`
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://api.twitter.com/2/tweets?\
+ids=1460323737035677698,1519994995878146049,1519476300794458115&\
+tweet.fields=created_at,public_metrics,lang&\
+expansions=author_id&\
+user.fields=name,username" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "1460323737035677698",
+      "text": "Introducing the new X Developer Platform — build what's next.",
+      "created_at": "2021-11-15T18:23:01.000Z",
+      "lang": "en",
+      "public_metrics": {
+        "retweet_count": 812,
+        "reply_count": 143,
+        "like_count": 4201,
+        "quote_count": 98,
+        "bookmark_count": 320,
+        "impression_count": 98540
+      },
+      "author_id": "2244994945",
+      "edit_history_tweet_ids": ["1460323737035677698"]
+    },
+    {
+      "id": "1519994995878146049",
+      "text": "The API is the connective tissue of the internet.",
+      "created_at": "2022-04-29T14:11:32.000Z",
+      "lang": "en",
+      "public_metrics": {
+        "retweet_count": 231,
+        "reply_count": 45,
+        "like_count": 1892,
+        "quote_count": 37,
+        "bookmark_count": 141,
+        "impression_count": 44210
+      },
+      "author_id": "2244994945",
+      "edit_history_tweet_ids": ["1519994995878146049"]
+    }
+  ],
+  "includes": {
+    "users": [
+      {
+        "id": "2244994945",
+        "name": "X Dev",
+        "username": "XDevelopers"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Response Fields
+
+The tweet object returned in the `data` field includes the following fields.
+
+<ResponseField name="id" type="string">
+  The unique identifier for the tweet. Tweet IDs are large integers represented as strings to
+  avoid precision loss in languages that use 64-bit floats.
+</ResponseField>
+
+<ResponseField name="text" type="string">
+  The full UTF-8 text of the tweet. URLs are always included in their t.co-shortened form.
+</ResponseField>
+
+<ResponseField name="edit_history_tweet_ids" type="array of strings">
+  Unique identifiers for each version of the tweet. The first element is the original tweet ID.
+  If the tweet has never been edited, this array contains only one element.
+</ResponseField>
+
+<ResponseField name="author_id" type="string">
+  The unique identifier of the user who posted the tweet. Returned when you include
+  `author_id` in `tweet.fields`.
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  The UTC datetime when the tweet was created. Returned when you include `created_at`
+  in `tweet.fields`. Format: `YYYY-MM-DDTHH:mm:ss.000Z`.
+</ResponseField>
+
+<ResponseField name="lang" type="string">
+  The BCP 47 language tag of the tweet content as detected by the platform. May be `und`
+  if the language could not be determined.
+</ResponseField>
+
+<ResponseField name="public_metrics" type="object">
+  Engagement counts that are publicly visible. Returned when you include `public_metrics`
+  in `tweet.fields`.
+
+  <Expandable title="public_metrics fields">
+    <ResponseField name="retweet_count" type="integer">
+      Number of times this tweet has been retweeted.
+    </ResponseField>
+    <ResponseField name="reply_count" type="integer">
+      Number of replies to this tweet.
+    </ResponseField>
+    <ResponseField name="like_count" type="integer">
+      Number of likes on this tweet.
+    </ResponseField>
+    <ResponseField name="quote_count" type="integer">
+      Number of times this tweet has been quoted.
+    </ResponseField>
+    <ResponseField name="bookmark_count" type="integer">
+      Number of times users have bookmarked this tweet.
+    </ResponseField>
+    <ResponseField name="impression_count" type="integer">
+      Number of times this tweet has been viewed. Only available to the tweet author.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Error Codes
+
+| HTTP Status | Error Code | Description |
+|---|---|---|
+| `400 Bad Request` | `invalid-request` | One or more tweet IDs are not in a valid format. Check that all IDs are numeric strings. |
+| `401 Unauthorized` | `unauthorized` | Your Bearer Token is missing, invalid, or expired. |
+| `404 Not Found` | `not-found` | The tweet does not exist, has been deleted, or belongs to a protected or suspended account. |
+
+<Note>
+  When you request multiple IDs via `GET /2/tweets`, tweets that cannot be returned (deleted,
+  protected, etc.) appear in the top-level `errors` array rather than causing the entire
+  request to fail.
+</Note>

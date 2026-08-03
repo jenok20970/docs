@@ -1,0 +1,651 @@
+---
+title: "Look Up Users, Followers, and Manage Follows with X API v2"
+sidebarTitle: "Manage Users"
+description: "Retrieve user profiles, paginate follower and following lists, and manage follows, blocks, and mutes using the X API v2 user endpoints."
+---
+
+The X API v2 provides a comprehensive set of user endpoints for looking up profile information, retrieving follower and following lists, and managing social actions such as following, unfollowing, blocking, and muting — all with fine-grained field control.
+
+<CardGroup cols={2}>
+  <Card title="User Lookup" icon="magnifying-glass">
+    Fetch public profile data for one user or up to 100 users in a single batch request. Requires only a Bearer Token.
+  </Card>
+  <Card title="Follows / Blocks / Mutes" icon="user-plus">
+    Follow, unfollow, block, and mute users on behalf of an authenticated account. Requires OAuth 2.0 user context.
+  </Card>
+</CardGroup>
+
+<Note>
+  User lookup endpoints for **public users** require at minimum **App-Only authentication** (Bearer Token). Endpoints that read or write data on behalf of a specific user — such as following or blocking — require **OAuth 2.0 user context** with the appropriate scopes.
+</Note>
+
+## Typical workflow
+
+<Steps>
+  <Step title="Look up the user's ID">
+    If you only have a username, call `GET /2/users/by/username/:username` to resolve it to a numeric user ID. Store the ID — it never changes even if the user renames their account.
+  </Step>
+  <Step title="Fetch profile data with user.fields">
+    Call `GET /2/users/:id` with your desired `user.fields` to retrieve the profile information your app needs — description, metrics, verification status, and more.
+  </Step>
+  <Step title="Paginate followers or following lists">
+    Use `GET /2/users/:id/followers` or `/following` with `max_results` up to 1000 and loop over `meta.next_token` until it is absent.
+  </Step>
+  <Step title="Take social actions with OAuth 2.0">
+    For follows, blocks, and mutes, obtain a user-context OAuth 2.0 token with the required write scope, then POST to the appropriate endpoint.
+  </Step>
+</Steps>
+
+## Endpoint quick reference
+
+<ParamField path="id" type="string">
+  The numeric user ID. Use `GET /2/users/by/username/:username` first if you only have a username.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  Comma-separated list of fields to include on returned user objects. See the [available fields table](#available-user-fields) below.
+</ParamField>
+
+<ParamField query="max_results" type="integer">
+  Number of users to return per page on list endpoints (followers, following). Range: `1`–`1000`.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Token from the previous response's `meta.next_token` to retrieve the next page.
+</ParamField>
+
+## Look up users
+
+### By user ID
+
+**Endpoint:** `GET https://api.twitter.com/2/users/:id`
+
+<CodeGroup>
+```bash cURL
+curl "https://api.twitter.com/2/users/2244994945" \
+  -H "Authorization: Bearer $BEARER_TOKEN" \
+  -G \
+  --data-urlencode "user.fields=username,name,description,profile_image_url,public_metrics,verified_type,created_at"
+```
+
+```python Python
+import requests
+import os
+
+BEARER_TOKEN = os.environ["BEARER_TOKEN"]
+
+def get_user_by_id(user_id: str) -> dict:
+    url = f"https://api.twitter.com/2/users/{user_id}"
+    headers = {"Authorization": f"Bearer {BEARER_TOKEN}"}
+    params = {
+        "user.fields": "username,name,description,profile_image_url,public_metrics,verified_type,created_at"
+    }
+    response = requests.get(url, headers=headers, params=params)
+    response.raise_for_status()
+    return response.json()["data"]
+
+
+user = get_user_by_id("2244994945")
+print(f"@{user['username']} — {user['description']}")
+```
+
+```javascript JavaScript
+const BEARER_TOKEN = process.env.BEARER_TOKEN;
+
+async function getUserById(userId) {
+  const url = new URL(`https://api.twitter.com/2/users/${userId}`);
+  url.searchParams.set(
+    "user.fields",
+    "username,name,description,profile_image_url,public_metrics,verified_type,created_at"
+  );
+
+  const response = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+  });
+
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  return data.data;
+}
+
+getUserById("2244994945").then((user) =>
+  console.log(`@${user.username} — ${user.description}`)
+);
+```
+</CodeGroup>
+
+### By username
+
+**Endpoint:** `GET https://api.twitter.com/2/users/by/username/:username`
+
+<CodeGroup>
+```bash cURL
+curl "https://api.twitter.com/2/users/by/username/XDevelopers" \
+  -H "Authorization: Bearer $BEARER_TOKEN" \
+  -G \
+  --data-urlencode "user.fields=id,name,username,description,public_metrics,verified_type"
+```
+
+```python Python
+def get_user_by_username(username: str) -> dict:
+    url = f"https://api.twitter.com/2/users/by/username/{username}"
+    headers = {"Authorization": f"Bearer {BEARER_TOKEN}"}
+    params = {
+        "user.fields": "id,name,username,description,public_metrics,verified_type"
+    }
+    response = requests.get(url, headers=headers, params=params)
+    response.raise_for_status()
+    return response.json()["data"]
+
+
+user = get_user_by_username("XDevelopers")
+print(f"User ID: {user['id']} | Followers: {user['public_metrics']['followers_count']}")
+```
+
+```javascript JavaScript
+async function getUserByUsername(username) {
+  const url = new URL(
+    `https://api.twitter.com/2/users/by/username/${username}`
+  );
+  url.searchParams.set(
+    "user.fields",
+    "id,name,username,description,public_metrics,verified_type"
+  );
+
+  const response = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+  });
+
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  return data.data;
+}
+
+getUserByUsername("XDevelopers").then((user) =>
+  console.log(`ID: ${user.id} | Followers: ${user.public_metrics.followers_count}`)
+);
+```
+</CodeGroup>
+
+### Batch lookup by IDs
+
+Fetch up to **100 users** in a single request using a comma-separated list of IDs.
+
+**Endpoint:** `GET https://api.twitter.com/2/users?ids=id1,id2,...`
+
+<CodeGroup>
+```bash cURL
+curl "https://api.twitter.com/2/users" \
+  -H "Authorization: Bearer $BEARER_TOKEN" \
+  -G \
+  --data-urlencode "ids=2244994945,6253282,783214" \
+  --data-urlencode "user.fields=username,name,public_metrics"
+```
+
+```python Python
+def get_users_batch(user_ids: list[str]) -> list[dict]:
+    url = "https://api.twitter.com/2/users"
+    headers = {"Authorization": f"Bearer {BEARER_TOKEN}"}
+    params = {
+        "ids": ",".join(user_ids),
+        "user.fields": "username,name,public_metrics",
+    }
+    response = requests.get(url, headers=headers, params=params)
+    response.raise_for_status()
+    return response.json()["data"]
+
+
+users = get_users_batch(["2244994945", "6253282", "783214"])
+for user in users:
+    print(f"@{user['username']}: {user['public_metrics']['followers_count']} followers")
+```
+
+```javascript JavaScript
+async function getUsersBatch(userIds) {
+  const url = new URL("https://api.twitter.com/2/users");
+  url.searchParams.set("ids", userIds.join(","));
+  url.searchParams.set("user.fields", "username,name,public_metrics");
+
+  const response = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+  });
+
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  return data.data;
+}
+
+getUsersBatch(["2244994945", "6253282", "783214"]).then((users) =>
+  users.forEach((u) =>
+    console.log(`@${u.username}: ${u.public_metrics.followers_count} followers`)
+  )
+);
+```
+</CodeGroup>
+
+## Followers and following
+
+### Get followers
+
+**Endpoint:** `GET https://api.twitter.com/2/users/:id/followers`
+
+Returns a paginated list of users who follow the specified account. Use `max_results` (1–1000) and `pagination_token` to page through large lists.
+
+<CodeGroup>
+```bash cURL
+curl "https://api.twitter.com/2/users/2244994945/followers" \
+  -H "Authorization: Bearer $BEARER_TOKEN" \
+  -G \
+  --data-urlencode "max_results=100" \
+  --data-urlencode "user.fields=username,name,public_metrics"
+```
+
+```python Python
+def get_all_followers(user_id: str, max_per_page: int = 1000) -> list[dict]:
+    url = f"https://api.twitter.com/2/users/{user_id}/followers"
+    headers = {"Authorization": f"Bearer {BEARER_TOKEN}"}
+    params = {
+        "max_results": max_per_page,
+        "user.fields": "username,name,public_metrics",
+    }
+
+    all_followers = []
+    pagination_token = None
+
+    while True:
+        if pagination_token:
+            params["pagination_token"] = pagination_token
+
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        all_followers.extend(data.get("data", []))
+        pagination_token = data.get("meta", {}).get("next_token")
+
+        if not pagination_token:
+            break
+
+    return all_followers
+
+
+followers = get_all_followers("2244994945")
+print(f"Total followers retrieved: {len(followers)}")
+```
+
+```javascript JavaScript
+async function getAllFollowers(userId, maxPerPage = 1000) {
+  const allFollowers = [];
+  let paginationToken = null;
+
+  do {
+    const url = new URL(
+      `https://api.twitter.com/2/users/${userId}/followers`
+    );
+    url.searchParams.set("max_results", maxPerPage);
+    url.searchParams.set("user.fields", "username,name,public_metrics");
+    if (paginationToken) url.searchParams.set("pagination_token", paginationToken);
+
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+
+    allFollowers.push(...(data.data ?? []));
+    paginationToken = data.meta?.next_token ?? null;
+  } while (paginationToken);
+
+  return allFollowers;
+}
+
+getAllFollowers("2244994945").then((followers) =>
+  console.log(`Total followers retrieved: ${followers.length}`)
+);
+```
+</CodeGroup>
+
+### Get following
+
+**Endpoint:** `GET https://api.twitter.com/2/users/:id/following`
+
+Returns a paginated list of accounts that the specified user follows. The pagination pattern is identical to the followers endpoint.
+
+<CodeGroup>
+```python Python
+def get_following(user_id: str) -> list[dict]:
+    url = f"https://api.twitter.com/2/users/{user_id}/following"
+    headers = {"Authorization": f"Bearer {BEARER_TOKEN}"}
+    params = {"max_results": 1000, "user.fields": "username,name"}
+
+    all_following = []
+    pagination_token = None
+
+    while True:
+        if pagination_token:
+            params["pagination_token"] = pagination_token
+
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        all_following.extend(data.get("data", []))
+        pagination_token = data.get("meta", {}).get("next_token")
+
+        if not pagination_token:
+            break
+
+    return all_following
+```
+
+```javascript JavaScript
+async function getFollowing(userId) {
+  const allFollowing = [];
+  let paginationToken = null;
+
+  do {
+    const url = new URL(
+      `https://api.twitter.com/2/users/${userId}/following`
+    );
+    url.searchParams.set("max_results", 1000);
+    url.searchParams.set("user.fields", "username,name");
+    if (paginationToken) url.searchParams.set("pagination_token", paginationToken);
+
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+
+    allFollowing.push(...(data.data ?? []));
+    paginationToken = data.meta?.next_token ?? null;
+  } while (paginationToken);
+
+  return allFollowing;
+}
+```
+</CodeGroup>
+
+## Follow and unfollow
+
+### Follow a user
+
+**Endpoint:** `POST https://api.twitter.com/2/users/:id/following`
+
+**Authentication:** OAuth 2.0 with `follows.write` scope
+
+The `:id` path parameter is the **authenticated user's** ID, not the target user.
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/users/123456789/following" \
+  -H "Authorization: Bearer $OAUTH2_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"target_user_id": "2244994945"}'
+```
+
+```python Python
+OAUTH2_TOKEN = os.environ["OAUTH2_TOKEN"]  # User context token
+
+def follow_user(source_user_id: str, target_user_id: str) -> dict:
+    url = f"https://api.twitter.com/2/users/{source_user_id}/following"
+    headers = {
+        "Authorization": f"Bearer {OAUTH2_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {"target_user_id": target_user_id}
+
+    response = requests.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+    return response.json()["data"]
+
+
+result = follow_user("123456789", "2244994945")
+print(f"Following: {result['following']} | Pending: {result.get('pending_follow', False)}")
+```
+
+```javascript JavaScript
+const OAUTH2_TOKEN = process.env.OAUTH2_TOKEN;
+
+async function followUser(sourceUserId, targetUserId) {
+  const response = await fetch(
+    `https://api.twitter.com/2/users/${sourceUserId}/following`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OAUTH2_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`API error ${response.status}: ${JSON.stringify(error)}`);
+  }
+
+  const data = await response.json();
+  return data.data;
+}
+
+followUser("123456789", "2244994945").then((result) =>
+  console.log("Following:", result.following)
+);
+```
+</CodeGroup>
+
+### Unfollow a user
+
+**Endpoint:** `DELETE https://api.twitter.com/2/users/:source_user_id/following/:target_user_id`
+
+**Authentication:** OAuth 2.0 with `follows.write` scope
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE \
+  "https://api.twitter.com/2/users/123456789/following/2244994945" \
+  -H "Authorization: Bearer $OAUTH2_TOKEN"
+```
+
+```python Python
+def unfollow_user(source_user_id: str, target_user_id: str) -> bool:
+    url = f"https://api.twitter.com/2/users/{source_user_id}/following/{target_user_id}"
+    headers = {"Authorization": f"Bearer {OAUTH2_TOKEN}"}
+
+    response = requests.delete(url, headers=headers)
+    response.raise_for_status()
+    return not response.json()["data"]["following"]
+
+
+unfollowed = unfollow_user("123456789", "2244994945")
+print("Unfollowed successfully:", unfollowed)
+```
+
+```javascript JavaScript
+async function unfollowUser(sourceUserId, targetUserId) {
+  const response = await fetch(
+    `https://api.twitter.com/2/users/${sourceUserId}/following/${targetUserId}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${OAUTH2_TOKEN}` },
+    }
+  );
+
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  return !data.data.following;
+}
+```
+</CodeGroup>
+
+## Blocks and mutes
+
+Both block and mute actions follow the same pattern: `POST` to add, `DELETE` to remove.
+
+### Block / Unblock
+
+**Block:** `POST https://api.twitter.com/2/users/:id/blocking`
+**Unblock:** `DELETE https://api.twitter.com/2/users/:source_user_id/blocking/:target_user_id`
+**Auth:** OAuth 2.0 with `block.write` scope
+
+<CodeGroup>
+```python Python
+def block_user(source_user_id: str, target_user_id: str) -> dict:
+    url = f"https://api.twitter.com/2/users/{source_user_id}/blocking"
+    headers = {
+        "Authorization": f"Bearer {OAUTH2_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    response = requests.post(url, headers=headers, json={"target_user_id": target_user_id})
+    response.raise_for_status()
+    return response.json()["data"]
+
+
+def unblock_user(source_user_id: str, target_user_id: str) -> bool:
+    url = f"https://api.twitter.com/2/users/{source_user_id}/blocking/{target_user_id}"
+    headers = {"Authorization": f"Bearer {OAUTH2_TOKEN}"}
+    response = requests.delete(url, headers=headers)
+    response.raise_for_status()
+    return not response.json()["data"]["blocking"]
+```
+
+```javascript JavaScript
+async function blockUser(sourceUserId, targetUserId) {
+  const response = await fetch(
+    `https://api.twitter.com/2/users/${sourceUserId}/blocking`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OAUTH2_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    }
+  );
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return (await response.json()).data;
+}
+
+async function unblockUser(sourceUserId, targetUserId) {
+  const response = await fetch(
+    `https://api.twitter.com/2/users/${sourceUserId}/blocking/${targetUserId}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${OAUTH2_TOKEN}` },
+    }
+  );
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return !(await response.json()).data.blocking;
+}
+```
+</CodeGroup>
+
+### Mute / Unmute
+
+**Mute:** `POST https://api.twitter.com/2/users/:id/muting`
+**Unmute:** `DELETE https://api.twitter.com/2/users/:source_user_id/muting/:target_user_id`
+**Auth:** OAuth 2.0 with `mute.write` scope
+
+<CodeGroup>
+```python Python
+def mute_user(source_user_id: str, target_user_id: str) -> dict:
+    url = f"https://api.twitter.com/2/users/{source_user_id}/muting"
+    headers = {
+        "Authorization": f"Bearer {OAUTH2_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    response = requests.post(url, headers=headers, json={"target_user_id": target_user_id})
+    response.raise_for_status()
+    return response.json()["data"]
+
+
+def unmute_user(source_user_id: str, target_user_id: str) -> bool:
+    url = f"https://api.twitter.com/2/users/{source_user_id}/muting/{target_user_id}"
+    headers = {"Authorization": f"Bearer {OAUTH2_TOKEN}"}
+    response = requests.delete(url, headers=headers)
+    response.raise_for_status()
+    return not response.json()["data"]["muting"]
+```
+
+```javascript JavaScript
+async function muteUser(sourceUserId, targetUserId) {
+  const response = await fetch(
+    `https://api.twitter.com/2/users/${sourceUserId}/muting`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OAUTH2_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    }
+  );
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return (await response.json()).data;
+}
+
+async function unmuteUser(sourceUserId, targetUserId) {
+  const response = await fetch(
+    `https://api.twitter.com/2/users/${sourceUserId}/muting/${targetUserId}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${OAUTH2_TOKEN}` },
+    }
+  );
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return !(await response.json()).data.muting;
+}
+```
+</CodeGroup>
+
+<Warning>
+  The `follows.write`, `block.write`, and `mute.write` scopes allow your app to take social actions on behalf of real users. Always obtain explicit user consent before initiating any follow, block, or mute action. Automated or bulk social actions that violate X's automation rules may result in app suspension.
+</Warning>
+
+<Tip>
+  When you call `POST /2/users/:id/following` and the target account is **protected**, the response includes `"pending_follow": true`. The follow request must be approved by the target user before it takes effect.
+</Tip>
+
+## User lookup response
+
+<ResponseField name="data.id" type="string">
+  Unique numeric user ID. Always returned.
+</ResponseField>
+
+<ResponseField name="data.name" type="string">
+  The user's display name.
+</ResponseField>
+
+<ResponseField name="data.username" type="string">
+  The user's @handle (without the `@`). Always returned.
+</ResponseField>
+
+<ResponseField name="data.public_metrics" type="object">
+  Contains `followers_count`, `following_count`, `tweet_count`, and `listed_count`. Returned when requested via `user.fields`.
+</ResponseField>
+
+<ResponseField name="meta.next_token" type="string">
+  Pagination token for the next page of followers or following results. Absent when you are on the last page.
+</ResponseField>
+
+## Available user fields
+
+Use the `user.fields` parameter on any user lookup to request specific fields:
+
+| Field | Description |
+|---|---|
+| `id` | Unique user ID (always returned) |
+| `name` | Display name |
+| `username` | @handle (always returned) |
+| `description` | Bio text |
+| `created_at` | Account creation timestamp |
+| `profile_image_url` | URL of the profile picture |
+| `public_metrics` | `followers_count`, `following_count`, `tweet_count`, `listed_count` |
+| `verified_type` | `blue`, `business`, `government`, or `none` |
+| `location` | Self-reported location string |
+| `url` | URL in the profile |
+| `protected` | `true` if the account is protected |
+| `pinned_tweet_id` | ID of the user's pinned tweet |

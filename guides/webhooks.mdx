@@ -1,0 +1,510 @@
+---
+title: "Real-Time User Events via the Account Activity API"
+sidebarTitle: "Webhooks"
+description: "Receive real-time tweet, DM, like, follow, and other user events for authorized accounts using the X Account Activity API webhooks."
+---
+
+The **Account Activity API (AAA)** delivers real-time event notifications to your server via webhooks. When a user authorizes your app, X sends a POST request to your registered webhook URL every time that user creates a tweet, receives a DM, gains a follower, and more — eliminating the need to poll for changes.
+
+<Note>
+  The Account Activity API requires **Pro tier or above**. It is not available on Free or Basic access. To upgrade your access, visit the [developer portal](https://developer.x.com/en/portal/products).
+</Note>
+
+<CardGroup cols={2}>
+  <Card title="Tweet & Engagement Events" icon="message">
+    Receive `tweet_create_events`, `favorite_events`, and `tweet_delete_events` as they happen for subscribed users.
+  </Card>
+  <Card title="Social & DM Events" icon="bell">
+    Receive `follow_events`, `block_events`, `mute_events`, `direct_message_events`, and `user_event` profile changes in real time.
+  </Card>
+</CardGroup>
+
+## Supported event types
+
+| Event field | Description |
+|---|---|
+| `tweet_create_events` | Tweets, retweets, replies, and quote tweets created by a subscribed user |
+| `favorite_events` | Tweets liked by a subscribed user |
+| `follow_events` | Follow or unfollow actions by or targeting a subscribed user |
+| `unfollow_events` | Unfollow actions initiated by a subscribed user |
+| `block_events` | Block and unblock actions by a subscribed user |
+| `mute_events` | Mute and unmute actions by a subscribed user |
+| `direct_message_events` | DMs sent and received by a subscribed user |
+| `direct_message_indicate_typing_events` | Typing indicators in DM conversations |
+| `direct_message_mark_read_events` | Read receipts in DM conversations |
+| `user_event` | Profile updates (display name, bio, location, etc.) by a subscribed user |
+| `tweet_delete_events` | Tweets deleted by a subscribed user |
+
+---
+
+## Webhook registration parameters
+
+<ParamField query="url" type="string" required>
+  The fully qualified HTTPS URL where X should deliver events and send CRC challenges. Must be publicly reachable and respond to GET (CRC) and POST (events) requests.
+</ParamField>
+
+<ParamField path="env_name" type="string" required>
+  The environment label you configured in the [developer portal](https://developer.x.com/en/portal/dashboard) (e.g., `production`, `staging`, or `dev`).
+</ParamField>
+
+## Set up your webhook
+
+<Steps>
+  <Step title="Register your webhook URL">
+    Send a POST request to register the URL where X will deliver events. X will immediately send a **CRC challenge** GET request to that URL to verify you own it. Your server must respond to the challenge before registration completes.
+
+    **Endpoint:** `POST https://api.twitter.com/1.1/account_activity/all/:env_name/webhooks.json`
+
+    Replace `:env_name` with the environment name you configured in your developer portal (e.g., `production` or `dev`).
+
+    ```bash cURL
+    curl -X POST \
+      "https://api.twitter.com/1.1/account_activity/all/production/webhooks.json?url=https%3A%2F%2Fyourapp.example.com%2Fwebhook%2Ftwitter" \
+      -H "Authorization: OAuth ..."
+    ```
+
+    A successful registration returns:
+
+    ```json
+    {
+      "id": "1234567890",
+      "url": "https://yourapp.example.com/webhook/twitter",
+      "valid": true,
+      "created_timestamp": "2024-04-15 12:00:00 +0000"
+    }
+    ```
+  </Step>
+
+  <Step title="Handle the CRC challenge">
+    During registration (and periodically afterwards), X sends a GET request to your webhook URL with a `crc_token` query parameter. Your server must respond with an HMAC-SHA-256 hash of the token, signed with your **Consumer Secret**, within **3 seconds**.
+
+    **Request from X:**
+    ```
+    GET https://yourapp.example.com/webhook/twitter?crc_token=abc123&nonce=xyz
+    ```
+
+    **Your required response (HTTP 200):**
+    ```json
+    {
+      "response_token": "sha256=<base64-encoded-HMAC>"
+    }
+    ```
+
+    ```python Python
+    import hmac
+    import hashlib
+    import base64
+    import os
+    from flask import Flask, request, jsonify
+
+    app = Flask(__name__)
+    CONSUMER_SECRET = os.environ["CONSUMER_SECRET"]
+
+    @app.route("/webhook/twitter", methods=["GET"])
+    def crc_check():
+        crc_token = request.args.get("crc_token", "")
+        digest = hmac.new(
+            CONSUMER_SECRET.encode("utf-8"),
+            crc_token.encode("utf-8"),
+            hashlib.sha256,
+        ).digest()
+        response_token = "sha256=" + base64.b64encode(digest).decode("utf-8")
+        return jsonify({"response_token": response_token})
+    ```
+
+    ```javascript JavaScript
+    const crypto = require("crypto");
+    const express = require("express");
+    const app = express();
+
+    const CONSUMER_SECRET = process.env.CONSUMER_SECRET;
+
+    app.get("/webhook/twitter", (req, res) => {
+      const crcToken = req.query.crc_token;
+      const hmac = crypto
+        .createHmac("sha256", CONSUMER_SECRET)
+        .update(crcToken)
+        .digest("base64");
+      res.json({ response_token: `sha256=${hmac}` });
+    });
+    ```
+  </Step>
+
+  <Step title="Subscribe users to your webhook">
+    After your webhook is registered and validated, subscribe each user whose events you want to receive. The request uses the user's **OAuth 1.0a access token** to authorize the subscription.
+
+    **Endpoint:** `POST https://api.twitter.com/1.1/account_activity/all/:env_name/subscriptions.json`
+
+    ```bash cURL
+    curl -X POST \
+      "https://api.twitter.com/1.1/account_activity/all/production/subscriptions.json" \
+      -H "Authorization: OAuth ..."
+    ```
+
+    A `204 No Content` response confirms the subscription was created successfully. X will now deliver events for that user to your registered webhook URL.
+
+    You can verify active subscriptions at any time:
+
+    ```bash cURL
+    # Requires app-only Bearer Token
+    curl "https://api.twitter.com/1.1/account_activity/all/production/subscriptions/list.json" \
+      -H "Authorization: Bearer $BEARER_TOKEN"
+    ```
+  </Step>
+
+  <Step title="Process incoming event payloads">
+    X sends event payloads as POST requests to your webhook URL. Each payload contains a `for_user_id` field identifying which subscribed user triggered the event, and one or more event type arrays.
+
+    **Always verify the `x-twitter-webhooks-signature` header** before processing a payload (see [Security](#security) below).
+
+    ```python Python
+    @app.route("/webhook/twitter", methods=["POST"])
+    def handle_event():
+        # 1. Verify signature (see Security section)
+        if not verify_signature(request):
+            return "Unauthorized", 403
+
+        payload = request.json
+        user_id = payload.get("for_user_id")
+
+        if "tweet_create_events" in payload:
+            for tweet in payload["tweet_create_events"]:
+                print(f"User {user_id} tweeted: {tweet['text'][:80]}")
+
+        if "direct_message_events" in payload:
+            for dm in payload["direct_message_events"]:
+                if dm["type"] == "message_create":
+                    msg = dm["message_create"]["message_data"]["text"]
+                    sender = dm["message_create"]["sender_id"]
+                    print(f"DM from {sender} to user {user_id}: {msg[:80]}")
+
+        if "follow_events" in payload:
+            for event in payload["follow_events"]:
+                if event["type"] == "follow":
+                    print(f"User {event['source']['id']} followed {event['target']['id']}")
+
+        return "", 200
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Complete webhook server example
+
+The following example shows a full Flask server that handles CRC challenges, verifies signatures, and processes events.
+
+<CodeGroup>
+```python Python (Flask)
+import hmac
+import hashlib
+import base64
+import os
+import json
+from flask import Flask, request, jsonify, abort
+
+app = Flask(__name__)
+
+CONSUMER_SECRET = os.environ["CONSUMER_SECRET"]
+
+
+def compute_response_token(crc_token: str) -> str:
+    """Compute the SHA-256 HMAC response for a CRC challenge."""
+    digest = hmac.new(
+        CONSUMER_SECRET.encode("utf-8"),
+        crc_token.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    return "sha256=" + base64.b64encode(digest).decode("utf-8")
+
+
+def verify_signature(req) -> bool:
+    """
+    Verify the x-twitter-webhooks-signature header.
+    Returns True if the payload is authentic.
+    """
+    signature_header = req.headers.get("x-twitter-webhooks-signature", "")
+    if not signature_header.startswith("sha256="):
+        return False
+
+    expected = hmac.new(
+        CONSUMER_SECRET.encode("utf-8"),
+        req.get_data(),
+        hashlib.sha256,
+    ).digest()
+    expected_b64 = "sha256=" + base64.b64encode(expected).decode("utf-8")
+
+    # Use compare_digest to prevent timing attacks
+    return hmac.compare_digest(expected_b64, signature_header)
+
+
+@app.route("/webhook/twitter", methods=["GET"])
+def crc_challenge():
+    """Respond to X's CRC challenge to validate webhook ownership."""
+    crc_token = request.args.get("crc_token")
+    if not crc_token:
+        abort(400, "Missing crc_token")
+    return jsonify({"response_token": compute_response_token(crc_token)})
+
+
+@app.route("/webhook/twitter", methods=["POST"])
+def handle_events():
+    """Receive and process Account Activity API events."""
+    if not verify_signature(request):
+        abort(403, "Invalid signature")
+
+    payload = request.json
+    user_id = payload.get("for_user_id", "unknown")
+
+    # --- Tweet create events ---
+    for tweet in payload.get("tweet_create_events", []):
+        is_retweet = "retweeted_status" in tweet
+        is_reply = tweet.get("in_reply_to_status_id") is not None
+        event_type = "retweet" if is_retweet else ("reply" if is_reply else "tweet")
+        print(f"[{event_type}] User {user_id}: {tweet['text'][:100]}")
+
+    # --- Like events ---
+    for fav in payload.get("favorite_events", []):
+        print(f"User {user_id} liked tweet {fav['favorited_status']['id_str']}")
+
+    # --- Follow events ---
+    for event in payload.get("follow_events", []):
+        action = event["type"]  # "follow" or "unfollow"
+        source = event["source"]["screen_name"]
+        target = event["target"]["screen_name"]
+        print(f"[{action}] @{source} -> @{target}")
+
+    # --- Direct message events ---
+    for event in payload.get("direct_message_events", []):
+        if event.get("type") == "message_create":
+            mc = event["message_create"]
+            sender_id = mc["sender_id"]
+            text = mc["message_data"]["text"]
+            print(f"DM from {sender_id}: {text[:100]}")
+
+    # --- User profile update events ---
+    if "user_event" in payload:
+        user_event = payload["user_event"]
+        if "update" in user_event:
+            print(f"User {user_id} updated their profile")
+
+    return "", 200
+
+
+if __name__ == "__main__":
+    app.run(port=5000, debug=False)
+```
+
+```javascript JavaScript (Express)
+const express = require("express");
+const crypto = require("crypto");
+
+const app = express();
+const CONSUMER_SECRET = process.env.CONSUMER_SECRET;
+
+// Parse raw body for signature verification
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
+
+function computeResponseToken(crcToken) {
+  return (
+    "sha256=" +
+    crypto
+      .createHmac("sha256", CONSUMER_SECRET)
+      .update(crcToken)
+      .digest("base64")
+  );
+}
+
+function verifySignature(req) {
+  const signatureHeader = req.headers["x-twitter-webhooks-signature"] ?? "";
+  if (!signatureHeader.startsWith("sha256=")) return false;
+
+  const expected =
+    "sha256=" +
+    crypto
+      .createHmac("sha256", CONSUMER_SECRET)
+      .update(req.rawBody)
+      .digest("base64");
+
+  // Constant-time comparison
+  return crypto.timingSafeEqual(
+    Buffer.from(expected),
+    Buffer.from(signatureHeader)
+  );
+}
+
+// CRC challenge
+app.get("/webhook/twitter", (req, res) => {
+  const crcToken = req.query.crc_token;
+  if (!crcToken) return res.status(400).json({ error: "Missing crc_token" });
+  res.json({ response_token: computeResponseToken(crcToken) });
+});
+
+// Event handler
+app.post("/webhook/twitter", (req, res) => {
+  if (!verifySignature(req)) {
+    return res.status(403).json({ error: "Invalid signature" });
+  }
+
+  const { for_user_id: userId, ...payload } = req.body;
+
+  // Tweet create events
+  for (const tweet of payload.tweet_create_events ?? []) {
+    const type = tweet.retweeted_status
+      ? "retweet"
+      : tweet.in_reply_to_status_id
+      ? "reply"
+      : "tweet";
+    console.log(`[${type}] User ${userId}: ${tweet.text.slice(0, 100)}`);
+  }
+
+  // Like events
+  for (const fav of payload.favorite_events ?? []) {
+    console.log(`User ${userId} liked tweet ${fav.favorited_status.id_str}`);
+  }
+
+  // Follow events
+  for (const event of payload.follow_events ?? []) {
+    console.log(`[${event.type}] @${event.source.screen_name} -> @${event.target.screen_name}`);
+  }
+
+  // Direct message events
+  for (const event of payload.direct_message_events ?? []) {
+    if (event.type === "message_create") {
+      const { sender_id, message_data } = event.message_create;
+      console.log(`DM from ${sender_id}: ${message_data.text.slice(0, 100)}`);
+    }
+  }
+
+  res.sendStatus(200);
+});
+
+app.listen(5000, () => console.log("Webhook server listening on port 5000"));
+```
+</CodeGroup>
+
+---
+
+## Payload examples
+
+### `tweet_create_events`
+
+```json
+{
+  "for_user_id": "123456789",
+  "tweet_create_events": [
+    {
+      "id_str": "1780000000000000001",
+      "text": "Just shipped a new feature! #BuildOnX",
+      "user": {
+        "id_str": "123456789",
+        "screen_name": "janedev",
+        "name": "Jane Dev"
+      },
+      "created_at": "Mon Apr 15 14:22:10 +0000 2024",
+      "in_reply_to_status_id": null,
+      "retweeted_status": null
+    }
+  ]
+}
+```
+
+### `direct_message_events`
+
+```json
+{
+  "for_user_id": "123456789",
+  "direct_message_events": [
+    {
+      "type": "message_create",
+      "id": "1780000000000000010",
+      "created_timestamp": "1713190930000",
+      "message_create": {
+        "target": {
+          "recipient_id": "123456789"
+        },
+        "sender_id": "987654321",
+        "message_data": {
+          "text": "Hey, love your latest project!",
+          "entities": {}
+        }
+      }
+    }
+  ],
+  "users": {
+    "987654321": {
+      "id": "987654321",
+      "name": "Bob Builder",
+      "screen_name": "bobbuilder"
+    },
+    "123456789": {
+      "id": "123456789",
+      "name": "Jane Dev",
+      "screen_name": "janedev"
+    }
+  }
+}
+```
+
+---
+
+## Webhook payload fields
+
+<ResponseField name="for_user_id" type="string">
+  The user ID of the subscribed account whose action triggered this event.
+</ResponseField>
+
+<ResponseField name="tweet_create_events" type="array">
+  Array of tweet objects created by or mentioning the subscribed user. Present only when relevant.
+</ResponseField>
+
+<ResponseField name="direct_message_events" type="array">
+  Array of DM event objects. Each contains a `type`, `message_create` object with `sender_id`, `target.recipient_id`, and `message_data.text`.
+</ResponseField>
+
+<ResponseField name="follow_events" type="array">
+  Array of follow/unfollow actions. Each contains `type` (`follow` or `unfollow`), `source` user object, and `target` user object.
+</ResponseField>
+
+<ResponseField name="users" type="object">
+  Map of user IDs to user objects referenced in the payload (present in DM and follow payloads).
+</ResponseField>
+
+## Security
+
+Always validate the `x-twitter-webhooks-signature` header on every incoming POST request before processing the payload. This prevents malicious actors from sending fake event data to your endpoint.
+
+**Validation steps:**
+
+1. Retrieve the raw (unparsed) request body as bytes.
+2. Compute `HMAC-SHA-256(CONSUMER_SECRET, raw_body)`.
+3. Base64-encode the result and prepend `sha256=`.
+4. Compare the computed value to the `x-twitter-webhooks-signature` header using a **constant-time comparison** function (e.g., `hmac.compare_digest` in Python, `crypto.timingSafeEqual` in Node.js) to prevent timing attacks.
+5. Reject the request with `403 Forbidden` if the values do not match.
+
+<Warning>
+  **Never parse the JSON body before verifying the signature.** JSON serialization is not deterministic — re-serializing a parsed object may produce a different byte sequence than the original, causing signature verification to fail. Always verify against the raw request bytes.
+</Warning>
+
+<Tip>
+  During local development, use a tunneling tool such as [ngrok](https://ngrok.com) to expose your localhost server to the internet so X can reach your webhook URL for CRC challenges and event delivery.
+</Tip>
+
+## Manage webhooks and subscriptions
+
+| Action | Method | Endpoint |
+|---|---|---|
+| List registered webhooks | GET | `/1.1/account_activity/all/:env_name/webhooks.json` |
+| Register a webhook | POST | `/1.1/account_activity/all/:env_name/webhooks.json` |
+| Delete a webhook | DELETE | `/1.1/account_activity/all/:env_name/webhooks/:webhook_id.json` |
+| Trigger CRC re-validation | PUT | `/1.1/account_activity/all/:env_name/webhooks/:webhook_id.json` |
+| Subscribe authenticated user | POST | `/1.1/account_activity/all/:env_name/subscriptions.json` |
+| Check subscription status | GET | `/1.1/account_activity/all/:env_name/subscriptions.json` |
+| List all subscriptions | GET | `/1.1/account_activity/all/:env_name/subscriptions/list.json` |
+| Unsubscribe a user | DELETE | `/1.1/account_activity/all/:env_name/subscriptions/:user_id.json` |

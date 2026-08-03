@@ -1,0 +1,452 @@
+---
+title: "Block and Mute Users with the X API v2 Blocks & Mutes"
+sidebarTitle: "Blocks & Mutes"
+description: "Block, unblock, mute, and unmute users and retrieve block and mute lists using the X API v2 with OAuth 2.0 user context authentication."
+---
+
+## Overview
+
+The Blocks and Mutes endpoints let you manage which accounts the authenticated user has blocked or muted. You can retrieve existing block and mute lists, block or mute new accounts, and remove blocks or mutes. All read and write operations require OAuth 2.0 user context authentication.
+
+**Base URL:** `https://api.twitter.com`
+
+<Note>
+  **OAuth 2.0 user context is required for all Blocks and Mutes endpoints.** The `block.read` and `mute.read` scopes are needed for read operations, and `block.write` and `mute.write` are required for write operations. Bearer Token (app-only) is not supported for any of these endpoints.
+</Note>
+
+---
+
+## Blocks
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/2/users/:id/blocking` | Get accounts the user has blocked |
+| `POST` | `/2/users/:id/blocking` | Block a user |
+| `DELETE` | `/2/users/:source_user_id/blocking/:target_user_id` | Unblock a user |
+
+---
+
+### GET /2/users/:id/blocking
+
+Returns a list of users that the specified user has blocked. Requires `block.read` scope.
+
+#### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the authenticated user whose block list you want to retrieve.
+</ParamField>
+
+#### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of results per page. Accepted values: `1`–`1000`. Defaults to `100`.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Token to request the next page of results. Use the `next_token` from a previous response.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  Comma-separated list of user fields to return. Supported values: `id`, `name`, `username`, `created_at`, `description`, `entities`, `location`, `pinned_tweet_id`, `profile_image_url`, `protected`, `public_metrics`, `url`, `verified`, `verified_type`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Supported value: `pinned_tweet_id`.
+</ParamField>
+
+<ParamField query="tweet.fields" type="string">
+  Tweet fields to include when expanding `pinned_tweet_id`.
+</ParamField>
+
+#### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/users/2244994945/blocking?user.fields=name,username" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN"
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+user_id = "2244994945"
+
+url = f"https://api.twitter.com/2/users/{user_id}/blocking"
+params = {"user.fields": "name,username"}
+headers = {"Authorization": f"Bearer {oauth2_token}"}
+
+response = requests.get(url, params=params, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+#### Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "1234567890",
+      "name": "Blocked User",
+      "username": "blockeduser"
+    }
+  ],
+  "meta": {
+    "result_count": 1
+  }
+}
+```
+
+---
+
+### POST /2/users/:id/blocking
+
+Blocks the target user on behalf of the authenticated user. Requires `block.write` scope.
+
+#### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the authenticated user performing the block.
+</ParamField>
+
+#### Request Body
+
+<ParamField body="target_user_id" type="string" required>
+  The numeric ID of the user to block.
+</ParamField>
+
+#### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/users/2244994945/blocking" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"target_user_id": "1234567890"}'
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+user_id = "2244994945"
+
+url = f"https://api.twitter.com/2/users/{user_id}/blocking"
+payload = {"target_user_id": "1234567890"}
+headers = {
+    "Authorization": f"Bearer {oauth2_token}",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+
+```javascript Node.js
+const axios = require("axios");
+
+const oauth2Token = "YOUR_OAUTH2_USER_TOKEN";
+const userId = "2244994945";
+
+axios
+  .post(
+    `https://api.twitter.com/2/users/${userId}/blocking`,
+    { target_user_id: "1234567890" },
+    {
+      headers: {
+        Authorization: `Bearer ${oauth2Token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  )
+  .then((res) => console.log(res.data))
+  .catch((err) => console.error(err));
+```
+</CodeGroup>
+
+#### Example Response
+
+```json
+{
+  "data": {
+    "blocking": true
+  }
+}
+```
+
+---
+
+### DELETE /2/users/:source_user_id/blocking/:target_user_id
+
+Removes a block between the authenticated user and the target user. Requires `block.write` scope.
+
+#### Path Parameters
+
+<ParamField path="source_user_id" type="string" required>
+  The numeric ID of the authenticated user removing the block.
+</ParamField>
+
+<ParamField path="target_user_id" type="string" required>
+  The numeric ID of the user to unblock.
+</ParamField>
+
+#### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE "https://api.twitter.com/2/users/2244994945/blocking/1234567890" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN"
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+source_user_id = "2244994945"
+target_user_id = "1234567890"
+
+url = f"https://api.twitter.com/2/users/{source_user_id}/blocking/{target_user_id}"
+headers = {"Authorization": f"Bearer {oauth2_token}"}
+
+response = requests.delete(url, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+#### Example Response
+
+```json
+{
+  "data": {
+    "blocking": false
+  }
+}
+```
+
+---
+
+## Mutes
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/2/users/:id/muting` | Get accounts the user has muted |
+| `POST` | `/2/users/:id/muting` | Mute a user |
+| `DELETE` | `/2/users/:source_user_id/muting/:target_user_id` | Unmute a user |
+
+---
+
+### GET /2/users/:id/muting
+
+Returns a list of users that the specified user has muted. Requires `mute.read` scope.
+
+#### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the authenticated user whose mute list you want to retrieve.
+</ParamField>
+
+#### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of results per page. Accepted values: `1`–`1000`. Defaults to `100`.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Token to request the next page of results. Use the `next_token` from a previous response.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  Comma-separated list of user fields to return. Supported values: `id`, `name`, `username`, `created_at`, `description`, `entities`, `location`, `pinned_tweet_id`, `profile_image_url`, `protected`, `public_metrics`, `url`, `verified`, `verified_type`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Supported value: `pinned_tweet_id`.
+</ParamField>
+
+<ParamField query="tweet.fields" type="string">
+  Tweet fields to include when expanding `pinned_tweet_id`.
+</ParamField>
+
+#### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/users/2244994945/muting?user.fields=name,username" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN"
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+user_id = "2244994945"
+
+url = f"https://api.twitter.com/2/users/{user_id}/muting"
+params = {"user.fields": "name,username"}
+headers = {"Authorization": f"Bearer {oauth2_token}"}
+
+response = requests.get(url, params=params, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+#### Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "9876543210",
+      "name": "Muted User",
+      "username": "muteduser"
+    }
+  ],
+  "meta": {
+    "result_count": 1
+  }
+}
+```
+
+---
+
+### POST /2/users/:id/muting
+
+Mutes the target user on behalf of the authenticated user. Requires `mute.write` scope.
+
+#### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the authenticated user performing the mute action.
+</ParamField>
+
+#### Request Body
+
+<ParamField body="target_user_id" type="string" required>
+  The numeric ID of the user to mute.
+</ParamField>
+
+#### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/users/2244994945/muting" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"target_user_id": "9876543210"}'
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+user_id = "2244994945"
+
+url = f"https://api.twitter.com/2/users/{user_id}/muting"
+payload = {"target_user_id": "9876543210"}
+headers = {
+    "Authorization": f"Bearer {oauth2_token}",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+
+```javascript Node.js
+const axios = require("axios");
+
+const oauth2Token = "YOUR_OAUTH2_USER_TOKEN";
+const userId = "2244994945";
+
+axios
+  .post(
+    `https://api.twitter.com/2/users/${userId}/muting`,
+    { target_user_id: "9876543210" },
+    {
+      headers: {
+        Authorization: `Bearer ${oauth2Token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  )
+  .then((res) => console.log(res.data))
+  .catch((err) => console.error(err));
+```
+</CodeGroup>
+
+#### Example Response
+
+```json
+{
+  "data": {
+    "muting": true
+  }
+}
+```
+
+---
+
+### DELETE /2/users/:source_user_id/muting/:target_user_id
+
+Removes a mute between the authenticated user and the target user. Requires `mute.write` scope.
+
+#### Path Parameters
+
+<ParamField path="source_user_id" type="string" required>
+  The numeric ID of the authenticated user removing the mute.
+</ParamField>
+
+<ParamField path="target_user_id" type="string" required>
+  The numeric ID of the user to unmute.
+</ParamField>
+
+#### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE "https://api.twitter.com/2/users/2244994945/muting/9876543210" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN"
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+source_user_id = "2244994945"
+target_user_id = "9876543210"
+
+url = f"https://api.twitter.com/2/users/{source_user_id}/muting/{target_user_id}"
+headers = {"Authorization": f"Bearer {oauth2_token}"}
+
+response = requests.delete(url, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+#### Example Response
+
+```json
+{
+  "data": {
+    "muting": false
+  }
+}
+```
+
+---
+
+## Differences Between Blocks and Mutes
+
+| Feature | Block | Mute |
+|---------|-------|------|
+| Prevents the target from seeing your Tweets | ✅ | ❌ |
+| Prevents the target from following you | ✅ | ❌ |
+| Hides the target's Tweets from your timeline | ✅ | ✅ |
+| Target is notified | No direct notification | No direct notification |
+| Required read scope | `block.read` | `mute.read` |
+| Required write scope | `block.write` | `mute.write` |

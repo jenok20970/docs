@@ -1,0 +1,330 @@
+---
+title: "OAuth 2.0 PKCE Authentication for X API v2 User Flows"
+sidebarTitle: "OAuth 2.0"
+description: "Implement OAuth 2.0 Authorization Code Flow with PKCE to authenticate X users, request scoped permissions, and manage access and refresh tokens."
+---
+
+OAuth 2.0 Authorization Code Flow with PKCE (Proof Key for Code Exchange) is the **recommended authentication method** for all new X API v2 integrations that act on behalf of users. PKCE eliminates the need to expose a client secret during the authorization exchange, making it secure for public clients like mobile applications and single-page apps — as well as confidential server-side applications.
+
+When a user authorizes your app, X issues an **access token** scoped to the exact permissions you requested. If you include the `offline.access` scope, X also issues a **refresh token** so you can obtain new access tokens without requiring the user to log in again.
+
+## Scopes
+
+Scopes define exactly what your app is allowed to do with a user's account. You must request only the scopes your app genuinely needs — users see the permission list during the authorization screen.
+
+| Scope | Access | Description |
+|---|---|---|
+| `tweet.read` | Read | Read tweets, timelines, and search results |
+| `tweet.write` | Write | Post, delete, and manage tweets |
+| `tweet.moderate.write` | Write | Hide and unhide replies |
+| `users.read` | Read | Read user profile information |
+| `follows.read` | Read | Read follower and following lists |
+| `follows.write` | Write | Follow and unfollow accounts |
+| `offline.access` | — | Receive a refresh token for long-lived sessions |
+| `space.read` | Read | Read Spaces and their metadata |
+| `mute.read` | Read | Read the authenticated user's mute list |
+| `mute.write` | Write | Mute and unmute accounts |
+| `like.read` | Read | Read liked tweets |
+| `like.write` | Write | Like and unlike tweets |
+| `list.read` | Read | Read list metadata and memberships |
+| `list.write` | Write | Create, delete, and manage lists |
+| `block.read` | Read | Read the authenticated user's block list |
+| `block.write` | Write | Block and unblock accounts |
+| `bookmark.read` | Read | Read the authenticated user's bookmarks |
+| `bookmark.write` | Write | Add and remove bookmarks |
+| `dm.read` | Read | Read direct messages |
+| `dm.write` | Write | Send and manage direct messages |
+
+<Note>
+  The `offline.access` scope is required to receive a refresh token. Without it, your access token expires and the user must re-authorize your app to continue. Always include `offline.access` in applications that need persistent, long-lived sessions.
+</Note>
+
+## Implementation Steps
+
+<Steps>
+  <Step title="Configure OAuth 2.0 in the Developer Portal">
+  Before writing any code, set up your app in the [X Developer Portal](https://developer.x.com/en/portal/dashboard):
+
+  1. Open your project and select your app.
+  2. Navigate to **User authentication settings** and click **Edit**.
+  3. Set **OAuth 2.0** to enabled.
+  4. Choose your **App type** (Web App, Native App, or Single-page App).
+  5. Add your **Callback URI / Redirect URL** — this is where X sends the user after they authorize your app. For local development, `http://localhost:3000/callback` is acceptable.
+  6. Add your **Website URL**.
+  7. Save the settings. X generates a **Client ID** and, for confidential clients, a **Client Secret**. Store these securely.
+
+  <Warning>
+    Never commit your Client Secret to source control. Use environment variables or a secrets manager.
+  </Warning>
+  </Step>
+
+  <Step title="Build the Authorization URL with PKCE">
+
+  PKCE requires you to generate a `code_verifier` (a cryptographically random string) and a `code_challenge` (the Base64-URL-encoded SHA-256 hash of the verifier). You send the challenge in the authorization URL and the verifier when exchanging the code for a token.
+
+  <CodeGroup>
+    ```python Python
+    import hashlib
+    import base64
+    import os
+    import urllib.parse
+
+    # Generate a code verifier (43–128 characters, URL-safe)
+    code_verifier = base64.urlsafe_b64encode(os.urandom(32)).rstrip(b"=").decode("utf-8")
+
+    # Derive the code challenge (S256 method)
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode("utf-8")).digest()
+    ).rstrip(b"=").decode("utf-8")
+
+    # Store code_verifier in your session — you'll need it in step 4
+    state = base64.urlsafe_b64encode(os.urandom(16)).rstrip(b"=").decode("utf-8")
+
+    params = {
+        "response_type": "code",
+        "client_id": "YOUR_CLIENT_ID",
+        "redirect_uri": "http://localhost:3000/callback",
+        "scope": "tweet.read tweet.write users.read offline.access",
+        "state": state,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+    }
+
+    authorization_url = "https://twitter.com/i/oauth2/authorize?" + urllib.parse.urlencode(params)
+    print("Direct user to:", authorization_url)
+    ```
+
+    ```javascript JavaScript
+    import crypto from "crypto";
+
+    // Generate a code verifier (43–128 characters, URL-safe)
+    const codeVerifier = crypto.randomBytes(32)
+      .toString("base64url");
+
+    // Derive the code challenge (S256 method)
+    const codeChallenge = crypto
+      .createHash("sha256")
+      .update(codeVerifier)
+      .digest("base64url");
+
+    // Store codeVerifier in your session — you'll need it in step 4
+    const state = crypto.randomBytes(16).toString("base64url");
+
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: "YOUR_CLIENT_ID",
+      redirect_uri: "http://localhost:3000/callback",
+      scope: "tweet.read tweet.write users.read offline.access",
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256",
+    });
+
+    const authorizationUrl = `https://twitter.com/i/oauth2/authorize?${params}`;
+    console.log("Direct user to:", authorizationUrl);
+    ```
+  </CodeGroup>
+
+  </Step>
+
+  <Step title="Redirect the User and Handle the Callback">
+  Send the user to the `authorization_url` you built in the previous step. X presents the authorization screen listing the scopes you requested. After the user approves or denies the request, X redirects them to your `redirect_uri` with either an authorization `code` and `state`, or an `error` parameter.
+
+  <CodeGroup>
+    ```python Python
+    # In your callback route handler (e.g., Flask)
+    from flask import request, abort
+
+    def callback():
+        # Verify the state matches what you stored in the session
+        if request.args.get("state") != session["oauth_state"]:
+            abort(400, "State mismatch — possible CSRF attack")
+
+        error = request.args.get("error")
+        if error:
+            abort(400, f"Authorization denied: {error}")
+
+        authorization_code = request.args.get("code")
+        # Proceed to step 4 with authorization_code
+    ```
+
+    ```javascript JavaScript
+    // In your callback route handler (e.g., Express)
+    app.get("/callback", (req, res) => {
+      const { code, state, error } = req.query;
+
+      // Verify the state matches what you stored in the session
+      if (state !== req.session.oauthState) {
+        return res.status(400).send("State mismatch — possible CSRF attack");
+      }
+
+      if (error) {
+        return res.status(400).send(`Authorization denied: ${error}`);
+      }
+
+      // Proceed to step 4 with `code`
+    });
+    ```
+  </CodeGroup>
+  </Step>
+
+  <Step title="Exchange the Authorization Code for an Access Token">
+  Make a `POST` request to the token endpoint. Include the `code_verifier` you generated in step 2 — X verifies that it matches the `code_challenge` you submitted with the authorization URL.
+
+  <CodeGroup>
+    ```python Python
+    import requests
+
+    token_response = requests.post(
+        "https://api.twitter.com/2/oauth2/token",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        data={
+            "grant_type": "authorization_code",
+            "code": authorization_code,
+            "redirect_uri": "http://localhost:3000/callback",
+            "code_verifier": code_verifier,  # from step 2
+            "client_id": "YOUR_CLIENT_ID",
+        },
+        # Confidential clients authenticate with HTTP Basic Auth
+        auth=("YOUR_CLIENT_ID", "YOUR_CLIENT_SECRET"),
+    )
+
+    token_response.raise_for_status()
+    tokens = token_response.json()
+
+    access_token = tokens["access_token"]
+    refresh_token = tokens.get("refresh_token")  # present if offline.access was granted
+    expires_in = tokens["expires_in"]             # seconds until the access token expires
+
+    print(f"Access token: {access_token}")
+    print(f"Refresh token: {refresh_token}")
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch("https://api.twitter.com/2/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        // Confidential clients authenticate with HTTP Basic Auth
+        Authorization: `Basic ${Buffer.from(
+          `${CLIENT_ID}:${CLIENT_SECRET}`
+        ).toString("base64")}`,
+      },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: "http://localhost:3000/callback",
+        code_verifier: codeVerifier, // from step 2
+        client_id: CLIENT_ID,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Token exchange failed: ${response.statusText}`);
+    }
+
+    const { access_token, refresh_token, expires_in } = await response.json();
+    // refresh_token is present if offline.access was granted
+    ```
+  </CodeGroup>
+  </Step>
+
+  <Step title="Use the Access Token in API Requests">
+  Include the access token as a Bearer token in the `Authorization` header of every X API v2 request.
+
+  <CodeGroup>
+    ```python Python
+    import requests
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    # Example: fetch the authenticated user's profile
+    response = requests.get(
+        "https://api.twitter.com/2/users/me",
+        headers=headers,
+        params={"user.fields": "name,username,profile_image_url"},
+    )
+
+    response.raise_for_status()
+    user = response.json()["data"]
+    print(f"Authenticated as: @{user['username']}")
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch(
+      "https://api.twitter.com/2/users/me?user.fields=name,username,profile_image_url",
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.statusText}`);
+    }
+
+    const { data: user } = await response.json();
+    console.log(`Authenticated as: @${user.username}`);
+    ```
+  </CodeGroup>
+  </Step>
+
+  <Step title="Refresh the Access Token">
+  Access tokens expire (typically after 2 hours). If you requested the `offline.access` scope, use the refresh token to obtain a new access token without requiring the user to log in again.
+
+  <CodeGroup>
+    ```python Python
+    import requests
+
+    refresh_response = requests.post(
+        "https://api.twitter.com/2/oauth2/token",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        data={
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": "YOUR_CLIENT_ID",
+        },
+        auth=("YOUR_CLIENT_ID", "YOUR_CLIENT_SECRET"),
+    )
+
+    refresh_response.raise_for_status()
+    new_tokens = refresh_response.json()
+
+    access_token = new_tokens["access_token"]
+    # X rotates refresh tokens — always store the new one
+    refresh_token = new_tokens.get("refresh_token", refresh_token)
+
+    print(f"New access token: {access_token}")
+    ```
+
+    ```javascript JavaScript
+    const refreshResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${Buffer.from(
+          `${CLIENT_ID}:${CLIENT_SECRET}`
+        ).toString("base64")}`,
+      },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        client_id: CLIENT_ID,
+      }),
+    });
+
+    if (!refreshResponse.ok) {
+      throw new Error(`Token refresh failed: ${refreshResponse.statusText}`);
+    }
+
+    const newTokens = await refreshResponse.json();
+    const newAccessToken = newTokens.access_token;
+    // X rotates refresh tokens — always store the new one
+    const newRefreshToken = newTokens.refresh_token ?? refreshToken;
+    ```
+  </CodeGroup>
+
+  <Note>
+    X rotates refresh tokens on every use. After a successful token refresh, you receive a **new** refresh token and the old one is invalidated. Always persist the latest refresh token returned by the API.
+  </Note>
+  </Step>
+</Steps>

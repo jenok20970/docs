@@ -1,0 +1,253 @@
+---
+title: "Sampled Stream: Real-Time Random 1% Sample of Public Tweets"
+sidebarTitle: "Sampled Stream"
+description: "Connect to a real-time stream of approximately 1% of all public Tweets with no rules required, ideal for broad data sampling and research."
+---
+
+## Overview
+
+The Sampled Stream endpoint delivers a continuous, approximately 1% random sample of all public Tweets posted on X in real time. Unlike the Filtered Stream, you don't need to define any rules — every Tweet in the sample is delivered automatically as soon as you connect.
+
+**Base URL:** `https://api.twitter.com`
+
+**Authentication:** Bearer Token (app-only).
+
+The sampled stream is ideal when you need:
+- A statistically representative cross-section of public X activity
+- Broad coverage without knowing what topics or keywords to filter for
+- Research or analytics workloads that benefit from volume over precision
+
+<Tip>
+  If you need Tweets matching specific topics, accounts, or keywords, use the [Filtered Stream](/api-reference/streams/filtered-stream) instead. Use the sampled stream when broad, rule-free coverage is what you need.
+</Tip>
+
+---
+
+## GET /2/tweets/sample/stream
+
+Opens a persistent HTTP connection that delivers a random 1% sample of public Tweets as newline-delimited JSON. The server sends empty newlines (heartbeats) periodically to keep the connection alive.
+
+### Query Parameters
+
+<ParamField query="tweet.fields" type="string">
+  Comma-separated list of Tweet fields to include in each streamed Tweet. For example: `id`, `text`, `created_at`, `author_id`, `public_metrics`, `entities`, `attachments`, `geo`, `lang`, `source`, `possibly_sensitive`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects inline. Supported values: `author_id`, `referenced_tweets.id`, `attachments.media_keys`, `geo.place_id`, `entities.mentions.username`.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  User fields to include when expanding `author_id`. For example: `name`, `username`, `profile_image_url`, `public_metrics`, `verified`.
+</ParamField>
+
+<ParamField query="media.fields" type="string">
+  Media fields to include when expanding `attachments.media_keys`. For example: `type`, `url`, `preview_image_url`, `width`, `height`, `alt_text`.
+</ParamField>
+
+<ParamField query="backfill_minutes" type="integer">
+  **Pro+ only.** Number of minutes of missed Tweets to replay immediately after reconnecting. Accepted values: `1`–`5`. Use this parameter on reconnect to recover Tweets posted during a short disconnect.
+</ParamField>
+
+### Connect to the Stream
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/tweets/sample/stream?tweet.fields=id,text,created_at,author_id,lang&expansions=author_id&user.fields=name,username" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+```python Python
+import requests
+import json
+
+bearer_token = "YOUR_BEARER_TOKEN"
+
+url = "https://api.twitter.com/2/tweets/sample/stream"
+params = {
+    "tweet.fields": "id,text,created_at,author_id,lang",
+    "expansions": "author_id",
+    "user.fields": "name,username"
+}
+headers = {"Authorization": f"Bearer {bearer_token}"}
+
+with requests.get(url, params=params, headers=headers, stream=True) as response:
+    response.raise_for_status()
+    for line in response.iter_lines():
+        if line:  # Skip empty heartbeat lines
+            tweet = json.loads(line)
+            print(json.dumps(tweet, indent=2))
+```
+
+```javascript Node.js
+const https = require("https");
+
+const bearerToken = "YOUR_BEARER_TOKEN";
+const params = new URLSearchParams({
+  "tweet.fields": "id,text,created_at,author_id,lang",
+  expansions: "author_id",
+  "user.fields": "name,username",
+});
+
+const options = {
+  hostname: "api.twitter.com",
+  path: `/2/tweets/sample/stream?${params}`,
+  method: "GET",
+  headers: {
+    Authorization: `Bearer ${bearerToken}`,
+  },
+};
+
+const req = https.request(options, (res) => {
+  let buffer = "";
+  res.on("data", (chunk) => {
+    buffer += chunk.toString();
+    const lines = buffer.split("\n");
+    buffer = lines.pop(); // Keep any incomplete line for the next chunk
+    for (const line of lines) {
+      if (line.trim()) {
+        try {
+          const tweet = JSON.parse(line);
+          console.log(JSON.stringify(tweet, null, 2));
+        } catch (e) {
+          console.error("Failed to parse line:", line);
+        }
+      }
+    }
+  });
+
+  res.on("end", () => console.log("Stream ended."));
+});
+
+req.on("error", (err) => console.error("Request error:", err));
+req.end();
+```
+</CodeGroup>
+
+### Stream Response Format
+
+Each Tweet arrives as a single line of JSON. There are no `matching_rules` in sampled stream responses because no rules are applied.
+
+```json
+{
+  "data": {
+    "id": "1585866435553656832",
+    "text": "Just made the best cup of coffee ☕ #morning",
+    "created_at": "2023-11-15T07:15:32.000Z",
+    "author_id": "123456789",
+    "lang": "en"
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "123456789",
+        "name": "Jane Smith",
+        "username": "janesmith"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Volume Expectations
+
+The sampled stream delivers a true 1% sample, which translates to **hundreds of millions of Tweets per day** at peak volumes. Plan your infrastructure accordingly.
+
+| Metric | Approximate value |
+|--------|-------------------|
+| Average throughput | ~500–1,000 Tweets/second |
+| Daily volume | 50M–100M+ Tweets/day |
+| Peak throughput | Higher during major world events |
+
+Make sure your data pipeline can handle the ingestion rate without falling behind. Consider writing Tweets to a message queue (e.g., Kafka, SQS) before processing them, rather than processing inline.
+
+---
+
+## Disconnect and Reconnect Behavior
+
+When your connection drops, your stream pauses — you will miss Tweets posted while you were disconnected. Reconnect as quickly as possible to minimize data loss.
+
+<Tip>
+  **Pro+ users:** Include `backfill_minutes=5` on reconnect to recover up to 5 minutes of Tweets you missed. This is the most effective way to maintain data completeness after a short outage. The parameter is ignored if used with a fresh connection (not a reconnect).
+</Tip>
+
+### Reconnect with Backfill
+
+<CodeGroup>
+```python Python
+import requests
+import json
+import time
+
+bearer_token = "YOUR_BEARER_TOKEN"
+
+def connect_to_stream(backfill_minutes=None):
+    url = "https://api.twitter.com/2/tweets/sample/stream"
+    params = {
+        "tweet.fields": "id,text,created_at,author_id,lang",
+        "expansions": "author_id",
+        "user.fields": "name,username"
+    }
+    if backfill_minutes:
+        params["backfill_minutes"] = backfill_minutes
+
+    headers = {"Authorization": f"Bearer {bearer_token}"}
+
+    with requests.get(url, params=params, headers=headers, stream=True) as response:
+        response.raise_for_status()
+        for line in response.iter_lines():
+            if line:
+                yield json.loads(line)
+
+def run_stream():
+    wait_time = 1
+    is_reconnect = False
+
+    while True:
+        try:
+            backfill = 5 if is_reconnect else None
+            for tweet in connect_to_stream(backfill_minutes=backfill):
+                process_tweet(tweet)
+                wait_time = 1  # Reset backoff on successful data
+                is_reconnect = False
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:
+                print("Rate limited. Waiting 60s...")
+                time.sleep(60)
+            else:
+                print(f"HTTP error: {e}. Reconnecting in {wait_time}s...")
+                time.sleep(wait_time)
+                wait_time = min(wait_time * 2, 60)
+        except Exception as e:
+            print(f"Stream error: {e}. Reconnecting in {wait_time}s...")
+            time.sleep(wait_time)
+            wait_time = min(wait_time * 2, 60)
+            is_reconnect = True
+
+def process_tweet(tweet):
+    # Add your processing logic here
+    print(f"[{tweet['data']['lang']}] {tweet['data']['text'][:80]}")
+
+run_stream()
+```
+</CodeGroup>
+
+---
+
+## Sampled Stream vs. Filtered Stream
+
+Choose the right stream for your use case:
+
+| | Sampled Stream | Filtered Stream |
+|-|---------------|-----------------|
+| **Rules required** | No | Yes |
+| **Coverage** | ~1% of all public Tweets | 100% of Tweets matching your rules |
+| **Volume** | Very high (millions/day) | Depends on rule specificity |
+| **Best for** | Research, trend analysis, broad sampling | Topic monitoring, keyword tracking, alerts |
+| **Rule limits** | N/A | 25 (Basic), 1,000 (Pro) |
+| **Backfill on reconnect** | ✅ Pro+ | ✅ Pro+ |
+| **Auth** | Bearer Token | Bearer Token |
+
+Use the **sampled stream** when you want a representative view of all X activity without knowing what to filter for. Use the **filtered stream** when you have specific topics, accounts, keywords, or operators you care about and want complete coverage of matching Tweets.

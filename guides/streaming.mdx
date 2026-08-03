@@ -1,0 +1,491 @@
+---
+title: "Real-Time Streaming with the X API v2 Stream Endpoints"
+sidebarTitle: "Streaming"
+description: "Connect to real-time tweet streams using the X API v2 Filtered Stream and Sampled Stream endpoints, with rule management and reconnection logic."
+---
+
+The X API v2 provides two streaming endpoints that deliver tweets to your application in real time over a persistent HTTP connection. Unlike polling-based search, streams push data to you as events happen — no repeated requests required.
+
+<CardGroup cols={2}>
+  <Card title="Filtered Stream" icon="filter">
+    Receive tweets that match one or more **rules** you define. Rules use the same operator syntax as search. Available on Basic and above.
+    `GET /2/tweets/search/stream`
+  </Card>
+  <Card title="Sampled Stream" icon="shuffle">
+    Receive a **1% random sample** of all public tweets in real time. No rules needed — useful for trend analysis and research.
+    `GET /2/tweets/sample/stream`
+  </Card>
+</CardGroup>
+
+<Warning>
+  Streams are long-lived HTTP connections and **will disconnect** periodically due to network issues, server-side restarts, or rate-limit enforcement. You must implement **exponential backoff reconnection logic** in your application. X will terminate connections that reconnect too aggressively (typically after 20 failed attempts in a short window).
+</Warning>
+
+<Note>
+  Both streaming endpoints require **Basic tier or above**. Bearer Token (App-Only) authentication is sufficient — you do not need OAuth 2.0 user context to connect to a stream. Each app may maintain **one concurrent filtered stream connection** per access tier.
+</Note>
+
+---
+
+## Filtered Stream
+
+### How it works
+
+Filtered Stream delivers tweets that match active **rules** attached to your app. You manage rules independently of the stream connection — rules persist between connections, so you only need to set them up once (or update them as your needs evolve).
+
+### Getting started with Filtered Stream
+
+<Steps>
+  <Step title="Delete any stale rules">
+    Fetch existing rules with `GET /2/tweets/search/stream/rules` and delete any you no longer need to avoid receiving unwanted tweets.
+  </Step>
+  <Step title="Add your rules">
+    Post new rules to `POST /2/tweets/search/stream/rules` with meaningful `tag` values so you can identify which rule matched each incoming tweet.
+  </Step>
+  <Step title="Open the stream connection">
+    Make a long-lived `GET /2/tweets/search/stream` request and read the response line by line. The server sends matching tweets as JSON lines and periodic empty heartbeat lines.
+  </Step>
+  <Step title="Handle disconnections with backoff">
+    Implement exponential backoff reconnection. Reset your backoff counter after a successful sustained connection (e.g., after staying connected for more than 60 seconds).
+  </Step>
+</Steps>
+
+### Managing rules
+
+**Get existing rules:** `GET https://api.twitter.com/2/tweets/search/stream/rules`
+
+**Add rules:** `POST https://api.twitter.com/2/tweets/search/stream/rules`
+
+**Delete rules:** `POST https://api.twitter.com/2/tweets/search/stream/rules` with a `delete` body
+
+Rules use the same operators as [search queries](/guides/search-tweets) — you can filter by keyword, user, hashtag, language, media presence, and more. Each rule can include a `tag` string to identify which rule matched a tweet in the stream response.
+
+**Rate limits for rules:**
+
+| Tier | Max rules |
+|---|---|
+| Basic | 25 |
+| Pro | 1,000 |
+| Enterprise | 100,000+ |
+
+<CodeGroup>
+```bash cURL — Get rules
+curl "https://api.twitter.com/2/tweets/search/stream/rules" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+```bash cURL — Add rules
+curl -X POST "https://api.twitter.com/2/tweets/search/stream/rules" \
+  -H "Authorization: Bearer $BEARER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "add": [
+      {"value": "#BuildOnX -is:retweet lang:en", "tag": "BuildOnX English"},
+      {"value": "from:XDevelopers", "tag": "XDevelopers tweets"}
+    ]
+  }'
+```
+
+```bash cURL — Delete rules
+curl -X POST "https://api.twitter.com/2/tweets/search/stream/rules" \
+  -H "Authorization: Bearer $BEARER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "delete": {
+      "ids": ["1273026480692322304", "1273026480692322305"]
+    }
+  }'
+```
+</CodeGroup>
+
+### Connect to the filtered stream
+
+**Endpoint:** `GET https://api.twitter.com/2/tweets/search/stream`
+
+The following query parameters are available when connecting:
+
+<ParamField query="tweet.fields" type="string">
+  Additional tweet fields to include in each streamed event, e.g. `author_id,created_at,public_metrics,lang`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects inline. Use `author_id` to include full user objects in `includes.users`.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  Fields to include on expanded user objects when `expansions=author_id` is set.
+</ParamField>
+
+<ParamField query="backfill_minutes" type="integer">
+  **Pro+ only.** Number of minutes of missed tweets to replay on reconnect (max `5`). Helps recover from brief disconnections without data loss.
+</ParamField>
+
+The connection is a long-lived HTTP GET. The server sends newline-delimited JSON objects as tweets match your rules, and periodic heartbeat newlines to keep the connection alive.
+
+<CodeGroup>
+```python Python
+import requests
+import json
+import os
+import time
+
+BEARER_TOKEN = os.environ["BEARER_TOKEN"]
+STREAM_URL = "https://api.twitter.com/2/tweets/search/stream"
+
+
+def get_rules() -> list[dict]:
+    response = requests.get(
+        "https://api.twitter.com/2/tweets/search/stream/rules",
+        headers={"Authorization": f"Bearer {BEARER_TOKEN}"},
+    )
+    response.raise_for_status()
+    return response.json().get("data", [])
+
+
+def add_rules(rules: list[dict]) -> None:
+    payload = {"add": rules}
+    response = requests.post(
+        "https://api.twitter.com/2/tweets/search/stream/rules",
+        headers={
+            "Authorization": f"Bearer {BEARER_TOKEN}",
+            "Content-Type": "application/json",
+        },
+        json=payload,
+    )
+    response.raise_for_status()
+    print(f"Rules added: {response.json()}")
+
+
+def delete_rules(rule_ids: list[str]) -> None:
+    payload = {"delete": {"ids": rule_ids}}
+    response = requests.post(
+        "https://api.twitter.com/2/tweets/search/stream/rules",
+        headers={
+            "Authorization": f"Bearer {BEARER_TOKEN}",
+            "Content-Type": "application/json",
+        },
+        json=payload,
+    )
+    response.raise_for_status()
+
+
+def connect_to_stream(retries: int = 0) -> None:
+    params = {
+        "tweet.fields": "author_id,created_at,public_metrics",
+        "expansions": "author_id",
+        "user.fields": "username,name",
+    }
+
+    try:
+        with requests.get(
+            STREAM_URL,
+            headers={"Authorization": f"Bearer {BEARER_TOKEN}"},
+            params=params,
+            stream=True,
+            timeout=30,
+        ) as response:
+            if response.status_code != 200:
+                raise Exception(f"Cannot connect to stream: {response.text}")
+
+            print("Connected to filtered stream.")
+            retries = 0  # Reset on successful connection
+
+            for line in response.iter_lines():
+                if line:
+                    tweet_data = json.loads(line)
+                    tweet = tweet_data.get("data", {})
+                    matching_rules = tweet_data.get("matching_rules", [])
+                    tags = [r.get("tag", "") for r in matching_rules]
+                    print(f"[{', '.join(tags)}] {tweet.get('id')}: {tweet.get('text', '')[:80]}")
+
+    except Exception as e:
+        print(f"Stream error: {e}")
+        # Exponential backoff with a cap of 5 minutes
+        wait = min(2 ** retries, 300)
+        print(f"Reconnecting in {wait}s...")
+        time.sleep(wait)
+        connect_to_stream(retries + 1)
+
+
+if __name__ == "__main__":
+    # Set up rules before connecting
+    existing_rules = get_rules()
+    if existing_rules:
+        delete_rules([r["id"] for r in existing_rules])
+
+    add_rules([
+        {"value": "#BuildOnX -is:retweet lang:en", "tag": "BuildOnX English"},
+        {"value": "from:XDevelopers", "tag": "XDevelopers tweets"},
+    ])
+
+    connect_to_stream()
+```
+
+```javascript JavaScript
+const BEARER_TOKEN = process.env.BEARER_TOKEN;
+const RULES_URL = "https://api.twitter.com/2/tweets/search/stream/rules";
+const STREAM_URL = "https://api.twitter.com/2/tweets/search/stream";
+
+async function getRules() {
+  const response = await fetch(RULES_URL, {
+    headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  return data.data ?? [];
+}
+
+async function addRules(rules) {
+  const response = await fetch(RULES_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${BEARER_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ add: rules }),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  console.log("Rules added:", await response.json());
+}
+
+async function deleteRules(ruleIds) {
+  const response = await fetch(RULES_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${BEARER_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ delete: { ids: ruleIds } }),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+}
+
+async function connectToStream(retries = 0) {
+  const url = new URL(STREAM_URL);
+  url.searchParams.set("tweet.fields", "author_id,created_at,public_metrics");
+  url.searchParams.set("expansions", "author_id");
+  url.searchParams.set("user.fields", "username,name");
+
+  try {
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    console.log("Connected to filtered stream.");
+    const decoder = new TextDecoder("utf-8");
+
+    for await (const chunk of response.body) {
+      const lines = decoder.decode(chunk).split("\n").filter(Boolean);
+      for (const line of lines) {
+        try {
+          const tweetData = JSON.parse(line);
+          const tweet = tweetData.data;
+          const tags = (tweetData.matching_rules ?? []).map((r) => r.tag).join(", ");
+          console.log(`[${tags}] ${tweet.id}: ${tweet.text.slice(0, 80)}`);
+        } catch {
+          // Heartbeat line — ignore
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Stream error:", error.message);
+    // Exponential backoff capped at 5 minutes
+    const wait = Math.min(2 ** retries * 1000, 300_000);
+    console.log(`Reconnecting in ${wait / 1000}s...`);
+    await new Promise((resolve) => setTimeout(resolve, wait));
+    return connectToStream(retries + 1);
+  }
+}
+
+async function main() {
+  const existing = await getRules();
+  if (existing.length > 0) await deleteRules(existing.map((r) => r.id));
+
+  await addRules([
+    { value: "#BuildOnX -is:retweet lang:en", tag: "BuildOnX English" },
+    { value: "from:XDevelopers", tag: "XDevelopers tweets" },
+  ]);
+
+  await connectToStream();
+}
+
+main().catch(console.error);
+```
+</CodeGroup>
+
+### Stream response format
+
+Each event delivered on the filtered stream is a JSON object on a single line:
+
+```json
+{
+  "data": {
+    "id": "1780000000000000001",
+    "text": "Just shipped a new feature using the X API! #BuildOnX",
+    "author_id": "123456789",
+    "created_at": "2024-04-15T14:22:10.000Z",
+    "public_metrics": {
+      "retweet_count": 0,
+      "reply_count": 0,
+      "like_count": 0,
+      "quote_count": 0,
+      "impression_count": 0
+    }
+  },
+  "includes": {
+    "users": [
+      {
+        "id": "123456789",
+        "name": "Jane Dev",
+        "username": "janedev"
+      }
+    ]
+  },
+  "matching_rules": [
+    {
+      "id": "1273026480692322304",
+      "tag": "BuildOnX English"
+    }
+  ]
+}
+```
+
+---
+
+## Sampled Stream
+
+The Sampled Stream delivers approximately **1% of all public tweets** in real time, chosen randomly. It requires no rules and is ideal for research, trend analysis, or building representative datasets.
+
+**Endpoint:** `GET https://api.twitter.com/2/tweets/sample/stream`
+
+**Authentication:** Bearer Token (App-Only)
+
+<CodeGroup>
+```python Python
+import requests
+import json
+import os
+import time
+
+BEARER_TOKEN = os.environ["BEARER_TOKEN"]
+SAMPLE_STREAM_URL = "https://api.twitter.com/2/tweets/sample/stream"
+
+
+def connect_to_sample_stream(retries: int = 0) -> None:
+    params = {
+        "tweet.fields": "author_id,created_at,lang,public_metrics",
+        "expansions": "author_id",
+        "user.fields": "username,name",
+    }
+
+    try:
+        with requests.get(
+            SAMPLE_STREAM_URL,
+            headers={"Authorization": f"Bearer {BEARER_TOKEN}"},
+            params=params,
+            stream=True,
+            timeout=30,
+        ) as response:
+            if response.status_code != 200:
+                raise Exception(f"Cannot connect: {response.text}")
+
+            print("Connected to sampled stream.")
+            tweet_count = 0
+
+            for line in response.iter_lines():
+                if line:
+                    tweet_data = json.loads(line)
+                    tweet = tweet_data.get("data", {})
+                    lang = tweet.get("lang", "und")
+                    print(f"[{lang}] {tweet.get('id')}: {tweet.get('text', '')[:80]}")
+                    tweet_count += 1
+
+    except Exception as e:
+        print(f"Stream error: {e}")
+        wait = min(2 ** retries, 300)
+        print(f"Reconnecting in {wait}s...")
+        time.sleep(wait)
+        connect_to_sample_stream(retries + 1)
+
+
+if __name__ == "__main__":
+    connect_to_sample_stream()
+```
+
+```javascript JavaScript
+const BEARER_TOKEN = process.env.BEARER_TOKEN;
+
+async function connectToSampleStream(retries = 0) {
+  const url = new URL("https://api.twitter.com/2/tweets/sample/stream");
+  url.searchParams.set("tweet.fields", "author_id,created_at,lang,public_metrics");
+  url.searchParams.set("expansions", "author_id");
+  url.searchParams.set("user.fields", "username,name");
+
+  try {
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    console.log("Connected to sampled stream.");
+    const decoder = new TextDecoder("utf-8");
+
+    for await (const chunk of response.body) {
+      const lines = decoder.decode(chunk).split("\n").filter(Boolean);
+      for (const line of lines) {
+        try {
+          const tweetData = JSON.parse(line);
+          const tweet = tweetData.data;
+          console.log(`[${tweet.lang ?? "und"}] ${tweet.id}: ${tweet.text.slice(0, 80)}`);
+        } catch {
+          // Heartbeat — ignore
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Stream error:", error.message);
+    const wait = Math.min(2 ** retries * 1000, 300_000);
+    console.log(`Reconnecting in ${wait / 1000}s...`);
+    await new Promise((resolve) => setTimeout(resolve, wait));
+    return connectToSampleStream(retries + 1);
+  }
+}
+
+connectToSampleStream().catch(console.error);
+```
+</CodeGroup>
+
+---
+
+## Streamed event response fields
+
+<ResponseField name="data" type="object">
+  The tweet object, containing at minimum `id` and `text`. Additional fields are returned based on your `tweet.fields` request parameter.
+</ResponseField>
+
+<ResponseField name="includes.users" type="array">
+  Expanded user objects for authors referenced in `data.author_id`. Present when `expansions=author_id` is set.
+</ResponseField>
+
+<ResponseField name="matching_rules" type="array">
+  **Filtered Stream only.** Array of rule objects (`id` and `tag`) that matched this tweet. A single tweet can match multiple rules.
+</ResponseField>
+
+## Reconnection best practices
+
+Follow these guidelines to avoid being rate-limited or suspended:
+
+| Scenario | Recommended action |
+|---|---|
+| Network error / TCP disconnect | Reconnect immediately (first attempt) |
+| `HTTP 420` or `HTTP 429` | Wait at least 60 seconds before retrying |
+| `HTTP 503` | Start exponential backoff from 5 seconds |
+| Repeated failures | Cap backoff at 5 minutes; alert your on-call team |
+| Heartbeat timeout (no data > 20s) | Treat as disconnect; reconnect with backoff |
+
+<Tip>
+  Always log the HTTP status code and response body on failed connection attempts. The body often contains an actionable error message explaining why the connection was refused.
+</Tip>

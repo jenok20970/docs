@@ -1,0 +1,326 @@
+---
+title: "GET /2/spaces — Look Up X Spaces by ID or Search"
+sidebarTitle: "Spaces Lookup"
+description: "Retrieve X Spaces by ID, batch-lookup multiple Spaces, find Spaces by creator, or search for live and scheduled Spaces in real time using the X API v2."
+---
+
+## Overview
+
+X Spaces are live audio conversations hosted on X. The Spaces lookup endpoints let you retrieve information about specific Spaces by ID, find Spaces hosted by particular users, or search for Spaces matching a query. Spaces data is only available for live or scheduled Spaces and for a short window after they end.
+
+**Base URL:** `https://api.twitter.com`
+
+**Authentication:** Bearer Token (app-only) or OAuth 2.0.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/2/spaces/:id` | Get a single Space by ID |
+| `GET` | `/2/spaces` | Batch look up up to 100 Spaces by IDs |
+| `GET` | `/2/spaces/by/creator_ids` | Get Spaces by creator user IDs |
+| `GET` | `/2/spaces/search` | Search for Spaces (Pro+ access required) |
+
+---
+
+## GET /2/spaces/:id
+
+Returns a single Space object for the given Space ID.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the Space to retrieve. Space IDs begin with the prefix `1` followed by alphanumeric characters (e.g., `1eaKerAkZpwKX`).
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="space.fields" type="string">
+  Comma-separated list of Space fields to include in the response. Supported values:
+
+  `id`, `state`, `created_at`, `host_ids`, `lang`, `title`, `topic_ids`, `updated_at`,
+  `participant_count`, `scheduled_start`, `speaker_ids`, `is_ticketed`
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects inline. Supported values:
+  - `host_ids` — includes full user objects for the Space hosts
+  - `speaker_ids` — includes full user objects for speakers
+  - `topic_ids` — includes full topic objects
+  - `invited_user_ids` — includes full user objects for invited users
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  Comma-separated list of user fields to return when expanding `host_ids` or `speaker_ids`. Supported values: `id`, `name`, `username`, `created_at`, `description`, `profile_image_url`, `public_metrics`, `verified`.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/spaces/1eaKerAkZpwKX?space.fields=id,state,title,host_ids,participant_count,created_at,lang,is_ticketed" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+```python Python
+import requests
+
+bearer_token = "YOUR_BEARER_TOKEN"
+space_id = "1eaKerAkZpwKX"
+
+url = f"https://api.twitter.com/2/spaces/{space_id}"
+params = {
+    "space.fields": "id,state,title,host_ids,participant_count,created_at,lang,is_ticketed"
+}
+headers = {"Authorization": f"Bearer {bearer_token}"}
+
+response = requests.get(url, params=params, headers=headers)
+print(response.json())
+```
+
+```javascript Node.js
+const axios = require("axios");
+
+const bearerToken = "YOUR_BEARER_TOKEN";
+const spaceId = "1eaKerAkZpwKX";
+
+axios
+  .get(`https://api.twitter.com/2/spaces/${spaceId}`, {
+    params: {
+      "space.fields":
+        "id,state,title,host_ids,participant_count,created_at,lang,is_ticketed",
+    },
+    headers: { Authorization: `Bearer ${bearerToken}` },
+  })
+  .then((res) => console.log(res.data))
+  .catch((err) => console.error(err));
+```
+</CodeGroup>
+
+---
+
+## GET /2/spaces
+
+Batch look up up to 100 Spaces in a single request.
+
+### Query Parameters
+
+<ParamField query="ids" type="string" required>
+  Comma-separated list of Space IDs to retrieve. You can specify up to 100 IDs per request.
+</ParamField>
+
+<ParamField query="space.fields" type="string">
+  Comma-separated list of Space fields to include. Supported values: `id`, `state`, `created_at`, `host_ids`, `lang`, `title`, `topic_ids`, `updated_at`, `participant_count`, `scheduled_start`, `speaker_ids`, `is_ticketed`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects. Supported values: `host_ids`, `speaker_ids`, `topic_ids`, `invited_user_ids`.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  User fields to include when expanding host or speaker IDs.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/spaces?ids=1eaKerAkZpwKX,1YpKkghkWgaKj&space.fields=id,state,title,participant_count" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+</CodeGroup>
+
+---
+
+## GET /2/spaces/by/creator_ids
+
+Returns live or scheduled Spaces created by the specified user IDs.
+
+### Query Parameters
+
+<ParamField query="user_ids" type="string" required>
+  Comma-separated list of user IDs whose Spaces you want to retrieve. You can specify up to 100 user IDs.
+</ParamField>
+
+<ParamField query="space.fields" type="string">
+  Comma-separated list of Space fields to return. Supported values: `id`, `state`, `created_at`, `host_ids`, `lang`, `title`, `topic_ids`, `updated_at`, `participant_count`, `scheduled_start`, `speaker_ids`, `is_ticketed`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects. Supported values: `host_ids`, `speaker_ids`, `topic_ids`, `invited_user_ids`.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  User fields to include when expanding host or speaker IDs.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/spaces/by/creator_ids?user_ids=2244994945,783214&space.fields=id,state,title,participant_count" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+```python Python
+import requests
+
+bearer_token = "YOUR_BEARER_TOKEN"
+
+url = "https://api.twitter.com/2/spaces/by/creator_ids"
+params = {
+    "user_ids": "2244994945,783214",
+    "space.fields": "id,state,title,participant_count"
+}
+headers = {"Authorization": f"Bearer {bearer_token}"}
+
+response = requests.get(url, params=params, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+---
+
+## GET /2/spaces/search
+
+Search for live or scheduled Spaces matching a keyword query.
+
+<Note>
+  **Access level:** The Spaces search endpoint requires **Pro** access or higher. Basic-tier access does not include this endpoint.
+</Note>
+
+### Query Parameters
+
+<ParamField query="query" type="string" required>
+  The keyword or phrase to search for in Space titles. For example, `AI research` or `developer tools`.
+</ParamField>
+
+<ParamField query="state" type="string">
+  Filter results by Space state. Accepted values: `live`, `scheduled`, `all`. Defaults to `live`.
+</ParamField>
+
+<ParamField query="max_results" type="integer">
+  Maximum number of results to return. Accepted values: `1`–`100`. Defaults to `100`.
+</ParamField>
+
+<ParamField query="space.fields" type="string">
+  Comma-separated list of Space fields to include. Supported values: `id`, `state`, `created_at`, `host_ids`, `lang`, `title`, `topic_ids`, `updated_at`, `participant_count`, `scheduled_start`, `speaker_ids`, `is_ticketed`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects. Supported values: `host_ids`, `speaker_ids`, `topic_ids`, `invited_user_ids`.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  User fields to include when expanding host or speaker IDs.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/spaces/search?query=developer+tools&state=live&space.fields=id,state,title,participant_count,host_ids" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+```python Python
+import requests
+
+bearer_token = "YOUR_BEARER_TOKEN"
+
+url = "https://api.twitter.com/2/spaces/search"
+params = {
+    "query": "developer tools",
+    "state": "live",
+    "space.fields": "id,state,title,participant_count,host_ids"
+}
+headers = {"Authorization": f"Bearer {bearer_token}"}
+
+response = requests.get(url, params=params, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+---
+
+## Example Response
+
+The following is a sample response for a single Space lookup.
+
+```json
+{
+  "data": {
+    "id": "1eaKerAkZpwKX",
+    "state": "live",
+    "title": "X API v2 Office Hours",
+    "created_at": "2023-11-15T18:00:00.000Z",
+    "host_ids": [
+      "2244994945"
+    ],
+    "participant_count": 342,
+    "lang": "en",
+    "is_ticketed": false,
+    "speaker_ids": [
+      "2244994945",
+      "783214"
+    ],
+    "topic_ids": [
+      "848920293898137600"
+    ],
+    "updated_at": "2023-11-15T18:45:00.000Z"
+  }
+}
+```
+
+---
+
+## Response Fields
+
+<ResponseField name="id" type="string">
+  The unique identifier of the Space.
+</ResponseField>
+
+<ResponseField name="state" type="string">
+  The current state of the Space. Possible values:
+  - `live` — the Space is currently broadcasting
+  - `scheduled` — the Space is set to start at a future time
+  - `ended` — the Space has concluded (available for a short period after ending)
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  The title of the Space as set by the host.
+</ResponseField>
+
+<ResponseField name="host_ids" type="array of strings">
+  Array of user IDs for the Space hosts. Expand with `expansions=host_ids` to retrieve full user objects.
+</ResponseField>
+
+<ResponseField name="participant_count" type="integer">
+  The number of participants currently in the Space. Only available when the Space is live.
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  The UTC datetime when the Space was created.
+</ResponseField>
+
+<ResponseField name="scheduled_start" type="string (ISO 8601)">
+  The UTC datetime the Space is scheduled to start. Only present for scheduled Spaces.
+</ResponseField>
+
+<ResponseField name="lang" type="string">
+  The language of the Space, as a BCP 47 language tag (e.g., `en`, `fr`, `es`).
+</ResponseField>
+
+<ResponseField name="is_ticketed" type="boolean">
+  When `true`, attendance requires a ticket purchased by the listener.
+</ResponseField>
+
+<ResponseField name="speaker_ids" type="array of strings">
+  Array of user IDs who are currently speaking in the Space.
+</ResponseField>
+
+<ResponseField name="topic_ids" type="array of strings">
+  Array of topic IDs associated with the Space. Expand with `expansions=topic_ids` to retrieve full topic objects.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string (ISO 8601)">
+  The UTC datetime the Space metadata was last updated.
+</ResponseField>

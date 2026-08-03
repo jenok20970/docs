@@ -1,0 +1,105 @@
+---
+title: "Test the X API v2 with the Official Postman Collection"
+sidebarTitle: "Postman"
+description: "Import the official X API v2 Postman collection to explore every endpoint, configure authentication, and send live requests without writing code."
+---
+
+The **X API v2 Postman collection** is published in the [Postman public workspace](https://www.postman.com/twitter) under the workspace name **"Twitter API v2"**. It contains pre-built requests for every v2 endpoint, organised into request groups, and includes environment templates for all authentication methods. You can send live requests directly from Postman — no code required.
+
+<Tip>
+  Use Postman's **Fork** feature instead of a plain import. A fork stays linked to the upstream collection, so you receive one-click updates whenever X adds new endpoints or changes existing ones. In the public workspace, select the collection and click **Fork** in the top-right corner.
+</Tip>
+
+---
+
+## Set up the collection
+
+<Steps>
+
+### Import the collection
+
+1. Open [Postman](https://www.postman.com) and sign in (a free account is sufficient).
+2. Navigate to the [X / Twitter API v2 public workspace](https://www.postman.com/twitter).
+3. Locate the **Twitter API v2** collection and click **Fork** (recommended) or **Import a copy**.
+4. Choose a destination workspace and confirm. The collection appears in your left sidebar.
+
+### Configure your environment
+
+The collection relies on Postman environment variables for credentials. Create a new environment (**Environments → +**) with the following variables:
+
+| Variable | Value | Type |
+|---|---|---|
+| `bearer_token` | Your app's Bearer Token | Secret |
+| `api_key` | Your app's API Key | Secret |
+| `api_key_secret` | Your app's API Key Secret | Secret |
+| `access_token` | OAuth 1.0a Access Token | Secret |
+| `access_token_secret` | OAuth 1.0a Access Token Secret | Secret |
+
+Set the type of each credential variable to **Secret** so values are masked in the UI and excluded from collection exports. Activate the environment by selecting it in the environment picker (top-right of the Postman window).
+
+<Note>
+  You can find your credentials in the [X Developer Portal](https://developer.x.com/en/portal/dashboard) under **Projects & Apps → Your App → Keys and Tokens**.
+</Note>
+
+### Configure OAuth 2.0 for user-context endpoints
+
+Some endpoints — such as creating tweets or managing follows — require a user-context access token obtained through the OAuth 2.0 PKCE flow. Configure this once at the collection level:
+
+1. Select the **Twitter API v2** collection in the sidebar.
+2. Open the **Authorization** tab.
+3. Set **Type** to **OAuth 2.0**.
+4. Fill in the fields:
+   - **Callback URL**: `https://oauth.pstmn.io/v1/callback` (Postman's built-in redirect)
+   - **Auth URL**: `https://twitter.com/i/oauth2/authorize`
+   - **Access Token URL**: `https://api.twitter.com/2/oauth2/token`
+   - **Client ID**: your app's OAuth 2.0 Client ID
+   - **Scope**: `tweet.read tweet.write users.read offline.access` (adjust to your needs)
+   - **PKCE**: enabled
+5. Click **Get New Access Token** and complete the browser prompt. Postman stores the token and injects it automatically.
+
+### Send your first request
+
+1. Expand the **Tweets** group in the collection sidebar.
+2. Open **Search Tweets → Recent search**.
+3. In the **Params** tab, set the `query` parameter to a search term, for example `from:XDevelopers -is:retweet`.
+4. Confirm that your environment is active (environment picker in the top-right).
+5. Click **Send**.
+
+A `200 OK` response with a JSON payload confirms that your credentials and environment are configured correctly.
+
+</Steps>
+
+---
+
+## Collection request groups
+
+The collection organises every v2 endpoint into the following groups:
+
+| Group | What's included |
+|---|---|
+| **Tweets** | Post, delete, search (recent & full-archive), lookup, likes, retweets, bookmarks, hide replies |
+| **Users** | Lookup by ID or username, followers, following, muting, blocking |
+| **Spaces** | Lookup by ID, search, buyers, participants |
+| **Lists** | Create, update, delete, manage members, manage follows, lookup |
+| **Direct Messages** | Send DM, lookup DM events, conversation management |
+| **Streams** | Filtered stream rules (add, delete, list) and sampled stream |
+
+---
+
+## Tips for working with the collection
+
+### Pre-request scripts for OAuth 1.0a
+
+Endpoints that require OAuth 1.0a (such as posting tweets with API Key credentials) rely on Postman pre-request scripts to compute the `Authorization` header signature. These scripts read `{{api_key}}`, `{{api_key_secret}}`, `{{access_token}}`, and `{{access_token_secret}}` from your environment — make sure all four are populated before sending.
+
+### Environment variable naming
+
+The collection expects **lowercase, underscore-separated** variable names (e.g., `bearer_token`, not `BEARER_TOKEN`). If you rename variables, update the corresponding references in the collection's pre-request scripts and authorization tabs to match.
+
+### Using the Postman Console
+
+Open the **Postman Console** (**View → Show Postman Console** or `Ctrl+Alt+C`) to inspect the exact HTTP request — including headers, the computed `Authorization` value, and the raw response body. This is invaluable for debugging authentication errors.
+
+<Warning>
+  Never share your Postman environment file or export it to a public workspace with credentials populated. Use Postman's **Secret** variable type and confirm that **Persist** is disabled for sensitive values to prevent accidental exposure.
+</Warning>

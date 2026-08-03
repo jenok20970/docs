@@ -1,0 +1,333 @@
+---
+title: "GET /2/dm_conversations — Retrieve DM Events"
+sidebarTitle: "Lookup DMs"
+description: "Retrieve DM events from specific conversations or list all conversations for a user using the X API v2 DM endpoints with OAuth 2.0."
+---
+
+## Overview
+
+The Direct Message (DM) lookup endpoints let you retrieve events from DM conversations — including messages sent, participants who joined, and participants who left. You can look up events in a specific conversation, retrieve a 1:1 DM thread with a particular user, or list all conversations for the authenticated user.
+
+**Base URL:** `https://api.twitter.com`
+
+**Authentication:** OAuth 2.0 with `dm.read` scope. Bearer Token (app-only) is not supported for DM endpoints.
+
+<Note>
+  All DM endpoints require OAuth 2.0 user context authentication with the `dm.read` scope. You can only access DMs for the authenticated user — you cannot read another user's DMs.
+</Note>
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/2/dm_conversations/:dm_conversation_id/dm_events` | Get events in a specific conversation |
+| `GET` | `/2/dm_conversations/with/:participant_id/dm_events` | Get 1:1 DM events with a participant |
+| `GET` | `/2/users/:id/dm_conversations` | List all conversations for a user |
+
+---
+
+## GET /2/dm_conversations/:dm_conversation_id/dm_events
+
+Returns DM events for the specified conversation. The authenticated user must be a participant in the conversation.
+
+### Path Parameters
+
+<ParamField path="dm_conversation_id" type="string" required>
+  The unique identifier of the DM conversation. Conversation IDs follow the format `{lowest_user_id}-{highest_user_id}` for 1:1 DMs, or a unique alphanumeric string for group conversations.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of DM events to return per page. Accepted values: `1`–`100`. Defaults to `100`.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Token to request the next page of results. Use the `next_token` from a previous response.
+</ParamField>
+
+<ParamField query="event_types" type="string">
+  Filter events by type. Comma-separated. Supported values:
+  - `MessageCreate` — messages sent in the conversation
+  - `ParticipantsJoin` — events when participants joined the conversation
+  - `ParticipantsLeave` — events when participants left the conversation
+
+  Defaults to `MessageCreate`.
+</ParamField>
+
+<ParamField query="dm_event.fields" type="string">
+  Comma-separated list of DM event fields to return. Supported values:
+
+  `id`, `text`, `event_type`, `created_at`, `dm_conversation_id`, `sender_id`, `attachments`, `participant_ids`
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects. Supported values:
+  - `sender_id` — includes the sender's full user object
+  - `participant_ids` — includes full user objects for all participants
+  - `attachments.media_keys` — includes media attachment objects
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  User fields to include when expanding `sender_id` or `participant_ids`. Supported values: `id`, `name`, `username`, `profile_image_url`, `verified`.
+</ParamField>
+
+<ParamField query="media.fields" type="string">
+  Media fields to include when expanding `attachments.media_keys`. Supported values: `media_key`, `type`, `url`, `preview_image_url`, `width`, `height`.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/dm_conversations/2244994945-783214/dm_events?dm_event.fields=id,text,event_type,created_at,sender_id&max_results=50" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN"
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+conversation_id = "2244994945-783214"
+
+url = f"https://api.twitter.com/2/dm_conversations/{conversation_id}/dm_events"
+params = {
+    "dm_event.fields": "id,text,event_type,created_at,sender_id",
+    "max_results": 50
+}
+headers = {"Authorization": f"Bearer {oauth2_token}"}
+
+response = requests.get(url, params=params, headers=headers)
+print(response.json())
+```
+
+```javascript Node.js
+const axios = require("axios");
+
+const oauth2Token = "YOUR_OAUTH2_USER_TOKEN";
+const conversationId = "2244994945-783214";
+
+axios
+  .get(
+    `https://api.twitter.com/2/dm_conversations/${conversationId}/dm_events`,
+    {
+      params: {
+        "dm_event.fields": "id,text,event_type,created_at,sender_id",
+        max_results: 50,
+      },
+      headers: { Authorization: `Bearer ${oauth2Token}` },
+    }
+  )
+  .then((res) => console.log(res.data))
+  .catch((err) => console.error(err));
+```
+</CodeGroup>
+
+---
+
+## GET /2/dm_conversations/with/:participant_id/dm_events
+
+Returns DM events for the 1:1 conversation between the authenticated user and the specified participant. If no conversation exists yet, the response returns an empty `data` array.
+
+### Path Parameters
+
+<ParamField path="participant_id" type="string" required>
+  The numeric user ID of the other participant in the 1:1 DM conversation.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of DM events per page. Accepted values: `1`–`100`. Defaults to `100`.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Token to request the next page of results.
+</ParamField>
+
+<ParamField query="event_types" type="string">
+  Filter by event type. Supported values: `MessageCreate`, `ParticipantsJoin`, `ParticipantsLeave`. Defaults to `MessageCreate`.
+</ParamField>
+
+<ParamField query="dm_event.fields" type="string">
+  DM event fields to return. Supported values: `id`, `text`, `event_type`, `created_at`, `dm_conversation_id`, `sender_id`, `attachments`, `participant_ids`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects. Supported values: `sender_id`, `participant_ids`, `attachments.media_keys`.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  User fields to include when expanding `sender_id` or `participant_ids`.
+</ParamField>
+
+<ParamField query="media.fields" type="string">
+  Media fields to include when expanding `attachments.media_keys`.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/dm_conversations/with/783214/dm_events?dm_event.fields=id,text,created_at,sender_id&expansions=sender_id&user.fields=name,username" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN"
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+participant_id = "783214"
+
+url = f"https://api.twitter.com/2/dm_conversations/with/{participant_id}/dm_events"
+params = {
+    "dm_event.fields": "id,text,created_at,sender_id",
+    "expansions": "sender_id",
+    "user.fields": "name,username"
+}
+headers = {"Authorization": f"Bearer {oauth2_token}"}
+
+response = requests.get(url, params=params, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+---
+
+## GET /2/users/:id/dm_conversations
+
+Returns a list of all DM conversations the specified user is participating in. This includes both 1:1 and group conversations. The authenticated user must match the `id` path parameter.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the authenticated user. This must match the user associated with your OAuth 2.0 token.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of conversations per page. Accepted values: `1`–`100`. Defaults to `100`.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Token to request the next page of conversations.
+</ParamField>
+
+<ParamField query="dm_event.fields" type="string">
+  DM event fields to return for the most recent event in each conversation. Supported values: `id`, `text`, `event_type`, `created_at`, `dm_conversation_id`, `sender_id`, `attachments`, `participant_ids`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Expand related objects. Supported values: `sender_id`, `participant_ids`, `attachments.media_keys`.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  User fields to include when expanding participant or sender IDs.
+</ParamField>
+
+<ParamField query="media.fields" type="string">
+  Media fields to include when expanding attachment media keys.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/users/2244994945/dm_conversations?dm_event.fields=id,text,created_at&max_results=25" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN"
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+user_id = "2244994945"
+
+url = f"https://api.twitter.com/2/users/{user_id}/dm_conversations"
+params = {
+    "dm_event.fields": "id,text,created_at",
+    "max_results": 25
+}
+headers = {"Authorization": f"Bearer {oauth2_token}"}
+
+response = requests.get(url, params=params, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+---
+
+## Example Response
+
+The following shows a sample response from the conversation events endpoint.
+
+```json
+{
+  "data": [
+    {
+      "id": "128341038123123712",
+      "text": "Hey, let's sync up tomorrow!",
+      "event_type": "MessageCreate",
+      "created_at": "2023-11-15T14:32:10.000Z",
+      "dm_conversation_id": "2244994945-783214",
+      "sender_id": "2244994945"
+    },
+    {
+      "id": "128341021234523400",
+      "text": "Sounds good. What time works for you?",
+      "event_type": "MessageCreate",
+      "created_at": "2023-11-15T14:30:05.000Z",
+      "dm_conversation_id": "2244994945-783214",
+      "sender_id": "783214"
+    }
+  ],
+  "meta": {
+    "result_count": 2,
+    "next_token": "7140dibdnow9c7btw4535n9lsmq5gd0k8b0bvo9bzx0"
+  }
+}
+```
+
+---
+
+## Response Fields
+
+<ResponseField name="id" type="string">
+  The unique identifier of the DM event.
+</ResponseField>
+
+<ResponseField name="text" type="string">
+  The text content of the message. Only present for `MessageCreate` events.
+</ResponseField>
+
+<ResponseField name="event_type" type="string">
+  The type of DM event. Possible values:
+  - `MessageCreate` — a message was sent
+  - `ParticipantsJoin` — one or more participants joined the conversation
+  - `ParticipantsLeave` — one or more participants left the conversation
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  The UTC datetime when the event occurred.
+</ResponseField>
+
+<ResponseField name="dm_conversation_id" type="string">
+  The unique identifier of the conversation this event belongs to.
+</ResponseField>
+
+<ResponseField name="sender_id" type="string">
+  The numeric user ID of the user who sent the message. Only present for `MessageCreate` events. Expand with `expansions=sender_id` to retrieve the full user object.
+</ResponseField>
+
+<ResponseField name="attachments" type="object">
+  Media or other attachments included in the message.
+
+  <Expandable title="attachments fields">
+    <ResponseField name="media_keys" type="array of strings">
+      Array of media keys for attached media items. Expand with `expansions=attachments.media_keys` to retrieve full media objects.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="participant_ids" type="array of strings">
+  Array of user IDs for participants involved in a join or leave event. Expand with `expansions=participant_ids` to retrieve full user objects.
+</ResponseField>

@@ -1,0 +1,179 @@
+---
+title: "X API Sandbox Environment: Test Without Live Impact"
+sidebarTitle: "Sandbox"
+description: "Use the X API sandbox to build and test your integration safely — no real tweets posted, no real accounts affected, no rate limits shared with production."
+---
+
+The X API sandbox gives you an isolated environment where you can exercise your integration end-to-end without touching live X data. Requests you make in the sandbox create test tweets, simulate timelines, and trigger mock streaming events that are completely invisible to real users. Because the sandbox is entirely separate from production, you can experiment freely — break things, reset state, and iterate quickly before you go live.
+
+---
+
+## What the sandbox provides
+
+| Capability | Details |
+|---|---|
+| **Test tweets** | Create and delete tweets that exist only within the sandbox. They never appear on X.com. |
+| **Simulated timelines** | Retrieve home and user timelines populated with sandbox-only test data. |
+| **Mock streaming** | Connect to filtered and sampled stream endpoints that emit simulated tweet events. |
+| **Isolated credentials** | Sandbox apps use separate API keys and tokens — they cannot accidentally call production endpoints. |
+| **Repeatable state** | Reset sandbox data at any time from the Developer Portal to start from a clean slate. |
+
+---
+
+## Sandbox vs. production
+
+The sandbox closely mirrors production behaviour, but there are a few important differences to keep in mind:
+
+| Area | Sandbox | Production |
+|---|---|---|
+| **Rate limits** | Relaxed or different limits to support automated testing | Standard tier-based limits apply |
+| **Endpoint coverage** | Core v2 endpoints available; some advanced endpoints may not be mirrored | Full endpoint surface |
+| **Data persistence** | Sandbox data can be reset on demand | Data is persistent |
+| **Webhooks / Account Activity** | Delivery may be simulated; event volume is lower | Live delivery at scale |
+| **Ads & monetisation APIs** | Not available | Available with approved access |
+
+<Note>
+  Sandbox availability depends on your access tier. Basic access includes sandbox for core tweet and user endpoints. Elevated and above unlock additional endpoint coverage. Check the [X Developer Portal](https://developer.x.com/en/portal/dashboard) to confirm what is available for your current tier.
+</Note>
+
+---
+
+## Get started with the sandbox
+
+<Steps>
+
+### Enable the sandbox in the Developer Portal
+
+1. Sign in to the [X Developer Portal](https://developer.x.com/en/portal/dashboard).
+2. Select the project you want to test against, or create a new one.
+3. Open **Settings** for the project and locate the **Environment** section.
+4. Toggle **Sandbox** to **Enabled** and save.
+
+### Create a test app with sandbox credentials
+
+1. Inside the same project, click **+ Add App** and name it something descriptive, for example `my-app-sandbox`.
+2. On the **Keys and Tokens** page, generate a new set of **API Key**, **API Key Secret**, **Bearer Token**, **Access Token**, and **Access Token Secret**.
+3. Store these credentials separately from your production credentials — for example, in a `.env.sandbox` file or in a dedicated secrets manager entry.
+
+<Warning>
+  Do not reuse production credentials in the sandbox, or vice versa. Mixing credentials can lead to unintended writes to live data or authentication failures.
+</Warning>
+
+### Point your SDK or HTTP client to the sandbox base URL
+
+Update your client configuration to use the sandbox base URL instead of the standard production URL.
+
+<CodeGroup>
+
+```typescript TypeScript (twitter-api-v2)
+import { TwitterApi } from 'twitter-api-v2';
+
+// Create a client with your sandbox Bearer Token.
+// To route requests to the sandbox base URL, use the low-level
+// client.get / client.post helpers with the full sandbox URL:
+const client = new TwitterApi(process.env.SANDBOX_BEARER_TOKEN as string);
+const SANDBOX_BASE = 'https://api.sandbox.x.com/2';
+
+// Example: search recent tweets via the sandbox
+const results = await client.get<{ data: unknown[] }>(
+  `${SANDBOX_BASE}/tweets/search/recent?query=hello`
+);
+```
+
+```python Python (Tweepy)
+import tweepy
+import os
+
+# Tweepy does not natively support a custom base URL for the Client class.
+# For sandbox testing with Python, use the requests library directly:
+import requests
+
+SANDBOX_BASE = "https://api.sandbox.x.com/2"
+headers = {"Authorization": f"Bearer {os.environ['SANDBOX_BEARER_TOKEN']}"}
+
+response = requests.get(
+    f"{SANDBOX_BASE}/tweets/search/recent",
+    headers=headers,
+    params={"query": "hello world"},
+)
+print(response.json())
+```
+
+```bash cURL
+curl -G "https://api.sandbox.x.com/2/tweets/search/recent" \
+  -H "Authorization: Bearer $SANDBOX_BEARER_TOKEN" \
+  --data-urlencode "query=hello world"
+```
+
+</CodeGroup>
+
+### Run your test scenarios
+
+With the sandbox client in place, exercise your integration as you normally would:
+
+- **Create tweets** — verify your payload structure and confirm IDs are returned.
+- **Search and retrieve** — check that query parameters, field expansions, and pagination work correctly.
+- **Simulate streaming** — connect your `StreamingClient` and confirm your `on_tweet` handler processes events properly.
+- **Trigger error paths** — send malformed requests intentionally to verify your error-handling logic.
+- **Reset state** — return to the Developer Portal and click **Reset sandbox data** whenever you need a clean environment.
+
+</Steps>
+
+---
+
+## Best practices
+
+### Keep sandbox and production configs separate
+
+Use separate environment files (`.env.sandbox`, `.env.production`) or distinct entries in your secrets manager. Load the correct file based on a `NODE_ENV` / `APP_ENV` variable so the switch between environments is explicit and auditable.
+
+```bash
+# .env.sandbox
+BEARER_TOKEN=AAAAAAAAAAAAAAAAAAAAAxxxxx_SANDBOX
+API_KEY=sandbox_api_key
+API_KEY_SECRET=sandbox_api_key_secret
+ACCESS_TOKEN=sandbox_access_token
+ACCESS_TOKEN_SECRET=sandbox_access_token_secret
+X_API_BASE_URL=https://api.sandbox.x.com/2
+```
+
+### Write integration tests against the sandbox
+
+Automate your sandbox runs as part of your CI pipeline. Because the sandbox does not affect live data and has relaxed rate limits, it is safe to run integration tests on every pull request.
+
+```typescript
+// jest integration test example
+const SANDBOX_BASE = process.env.X_API_BASE_URL ?? 'https://api.sandbox.x.com/2';
+
+describe('Tweet lifecycle (sandbox)', () => {
+  const client = new TwitterApi({
+    appKey:       process.env.API_KEY!,
+    appSecret:    process.env.API_KEY_SECRET!,
+    accessToken:  process.env.ACCESS_TOKEN!,
+    accessSecret: process.env.ACCESS_TOKEN_SECRET!,
+  });
+
+  it('creates and deletes a tweet', async () => {
+    // Use the low-level client.post / client.delete helpers to route
+    // requests to the sandbox base URL instead of production.
+    const { data } = await client.post<{ data: { id: string; text: string } }>(
+      `${SANDBOX_BASE}/tweets`,
+      { text: 'Sandbox integration test 🧪' }
+    );
+    expect(data.id).toBeDefined();
+
+    const deleted = await client.delete<{ data: { deleted: boolean } }>(
+      `${SANDBOX_BASE}/tweets/${data.id}`
+    );
+    expect(deleted.data.deleted).toBe(true);
+  });
+});
+```
+
+### Validate in sandbox before every production release
+
+Treat the sandbox as a mandatory gate in your release checklist — not just during initial development. Confirm all critical user journeys pass in sandbox immediately before deploying to production.
+
+<Tip>
+  Mirror your production app's OAuth scopes exactly in your sandbox app. A mismatch — for example, missing `tweet.write` in sandbox — can cause tests to pass in sandbox but fail in production due to a scope error, which defeats the purpose of pre-release validation.
+</Tip>

@@ -1,0 +1,326 @@
+---
+title: "Manage Follows with the X API v2 Follows Endpoints"
+sidebarTitle: "Follows"
+description: "Follow or unfollow users and retrieve following and follower lists using the X API v2 Follows endpoints. Requires OAuth 2.0 user context authentication."
+---
+
+## Overview
+
+The Follows endpoints let you retrieve who a user follows, retrieve a user's followers, follow a new account, or unfollow an account. Write operations require OAuth 2.0 user context authentication with the appropriate scope.
+
+**Base URL:** `https://api.twitter.com`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/2/users/:id/following` | Get accounts a user follows |
+| `GET` | `/2/users/:id/followers` | Get a user's followers |
+| `POST` | `/2/users/:id/following` | Follow a user |
+| `DELETE` | `/2/users/:source_user_id/following/:target_user_id` | Unfollow a user |
+
+<Note>
+  **Rate limits:** Read endpoints (`follows.read`) allow **15 requests per 15 minutes**. Write endpoints (`follows.write`) allow **5 requests per minute**. Exceeding these limits returns HTTP `429 Too Many Requests`.
+</Note>
+
+---
+
+## GET /2/users/:id/following
+
+Returns a list of users that the specified user ID is following. Results are paginated and return up to 1,000 users per response.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the user whose following list you want to retrieve.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of results to return per page. Accepted values: `1`–`1000`. Defaults to `100`.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Token to request the next page of results. Use the `next_token` value from a previous response.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  Comma-separated list of user fields to include. Supported values: `id`, `name`, `username`, `created_at`, `description`, `entities`, `location`, `pinned_tweet_id`, `profile_image_url`, `protected`, `public_metrics`, `url`, `verified`, `verified_type`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Supported value: `pinned_tweet_id`.
+</ParamField>
+
+<ParamField query="tweet.fields" type="string">
+  Tweet fields to include when expanding `pinned_tweet_id`.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/users/2244994945/following?max_results=100&user.fields=name,username,public_metrics" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+```python Python
+import requests
+
+bearer_token = "YOUR_BEARER_TOKEN"
+user_id = "2244994945"
+
+url = f"https://api.twitter.com/2/users/{user_id}/following"
+params = {
+    "max_results": 100,
+    "user.fields": "name,username,public_metrics"
+}
+headers = {"Authorization": f"Bearer {bearer_token}"}
+
+response = requests.get(url, params=params, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "783214",
+      "name": "X",
+      "username": "X"
+    },
+    {
+      "id": "6253282",
+      "name": "X API",
+      "username": "XDevelopers"
+    }
+  ],
+  "meta": {
+    "result_count": 2,
+    "next_token": "7140dibdnow9c7btw4535n9lsmq5gd0k8b0bvo9bzx0"
+  }
+}
+```
+
+---
+
+## GET /2/users/:id/followers
+
+Returns a list of users who follow the specified user ID. Results are paginated.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the user whose followers you want to retrieve.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="max_results" type="integer">
+  Maximum number of results per page. Accepted values: `1`–`1000`. Defaults to `100`.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Token to request the next page of results. Use the `next_token` value from a previous response.
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  Comma-separated list of user fields to include. Supported values: `id`, `name`, `username`, `created_at`, `description`, `entities`, `location`, `pinned_tweet_id`, `profile_image_url`, `protected`, `public_metrics`, `url`, `verified`, `verified_type`.
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Supported value: `pinned_tweet_id`.
+</ParamField>
+
+<ParamField query="tweet.fields" type="string">
+  Tweet fields to include when expanding `pinned_tweet_id`.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.twitter.com/2/users/2244994945/followers?max_results=100&user.fields=name,username" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+</CodeGroup>
+
+---
+
+## POST /2/users/:id/following
+
+Follows the target user on behalf of the authenticated user. Requires OAuth 2.0 user context with the `follows.write` scope.
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The numeric ID of the authenticated user who is performing the follow action. This must match the user associated with your OAuth 2.0 token.
+</ParamField>
+
+### Request Body
+
+<ParamField body="target_user_id" type="string" required>
+  The numeric ID of the user you want to follow.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/users/2244994945/following" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"target_user_id": "783214"}'
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+user_id = "2244994945"
+
+url = f"https://api.twitter.com/2/users/{user_id}/following"
+payload = {"target_user_id": "783214"}
+headers = {
+    "Authorization": f"Bearer {oauth2_token}",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+
+```javascript Node.js
+const axios = require("axios");
+
+const oauth2Token = "YOUR_OAUTH2_USER_TOKEN";
+const userId = "2244994945";
+
+axios
+  .post(
+    `https://api.twitter.com/2/users/${userId}/following`,
+    { target_user_id: "783214" },
+    {
+      headers: {
+        Authorization: `Bearer ${oauth2Token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  )
+  .then((res) => console.log(res.data))
+  .catch((err) => console.error(err));
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "following": true,
+    "pending_follow": false
+  }
+}
+```
+
+When `pending_follow` is `true`, the target account is protected and the follow request is pending their approval.
+
+---
+
+## DELETE /2/users/:source_user_id/following/:target_user_id
+
+Unfollows the target user on behalf of the authenticated user. Requires OAuth 2.0 user context with the `follows.write` scope.
+
+### Path Parameters
+
+<ParamField path="source_user_id" type="string" required>
+  The numeric ID of the authenticated user performing the unfollow action.
+</ParamField>
+
+<ParamField path="target_user_id" type="string" required>
+  The numeric ID of the user to unfollow.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE "https://api.twitter.com/2/users/2244994945/following/783214" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN"
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+source_user_id = "2244994945"
+target_user_id = "783214"
+
+url = f"https://api.twitter.com/2/users/{source_user_id}/following/{target_user_id}"
+headers = {"Authorization": f"Bearer {oauth2_token}"}
+
+response = requests.delete(url, headers=headers)
+print(response.json())
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "following": false
+  }
+}
+```
+
+---
+
+## Pagination
+
+Both the `/following` and `/followers` endpoints return paginated results. When more results are available, the response includes a `meta.next_token` value. Pass this token as the `pagination_token` query parameter in your next request to retrieve the subsequent page.
+
+<Steps>
+  <Step title="Make the initial request">
+    Send your first request without a `pagination_token`. Retrieve results and check `meta.next_token`.
+  </Step>
+  <Step title="Check for more pages">
+    If `meta.next_token` is present in the response, there are more results to fetch.
+  </Step>
+  <Step title="Request the next page">
+    Repeat the request with `pagination_token` set to the value of `meta.next_token`.
+  </Step>
+  <Step title="Stop when exhausted">
+    When `meta.next_token` is absent from the response, you have retrieved all available results.
+  </Step>
+</Steps>
+
+### Pagination Example
+
+<CodeGroup>
+```python Python
+import requests
+
+bearer_token = "YOUR_BEARER_TOKEN"
+user_id = "2244994945"
+url = f"https://api.twitter.com/2/users/{user_id}/followers"
+headers = {"Authorization": f"Bearer {bearer_token}"}
+
+params = {"max_results": 1000, "user.fields": "name,username"}
+all_users = []
+
+while True:
+    response = requests.get(url, params=params, headers=headers)
+    data = response.json()
+    all_users.extend(data.get("data", []))
+
+    next_token = data.get("meta", {}).get("next_token")
+    if not next_token:
+        break
+    params["pagination_token"] = next_token
+
+print(f"Total followers fetched: {len(all_users)}")
+```
+</CodeGroup>

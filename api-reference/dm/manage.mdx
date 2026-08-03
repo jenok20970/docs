@@ -1,0 +1,356 @@
+---
+title: "POST /2/dm_conversations — Send Direct Messages"
+sidebarTitle: "Manage DMs"
+description: "Create new DM conversations and send messages to existing conversations or participants using the X API v2 with OAuth 2.0 dm.write scope."
+---
+
+## Overview
+
+The DM management endpoints let you create new conversations and send messages to existing ones. You can open a new 1:1 or group DM, send a message to an existing conversation by ID, or send to a 1:1 conversation by participant user ID.
+
+**Base URL:** `https://api.twitter.com`
+
+**Authentication:** OAuth 2.0 with `dm.write` scope. All DM write operations require user context — Bearer Token (app-only) is not supported.
+
+<Warning>
+  **DM rate limits:** DM write endpoints are strictly rate-limited. You can send a maximum of **1,000 messages per 24 hours** per user. Attempts to exceed this limit return HTTP `429 Too Many Requests`. For high-volume messaging applications, design your system to stay well within these limits and implement retry logic with exponential backoff.
+</Warning>
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/2/dm_conversations` | Create a new DM conversation and send a message |
+| `POST` | `/2/dm_conversations/:dm_conversation_id/messages` | Send a message to an existing conversation |
+| `POST` | `/2/dm_conversations/with/:participant_id/messages` | Send a message to a 1:1 conversation by participant |
+
+---
+
+## POST /2/dm_conversations
+
+Creates a new DM conversation (1:1 or group) and sends the first message. If a 1:1 conversation already exists between the participants, X may route the message to the existing conversation.
+
+### Request Body
+
+<ParamField body="conversation_type" type="string" required>
+  The type of DM conversation to create. Accepted values:
+  - `OneToOne` — a 1:1 private DM between two users
+  - `Group` — a group DM with multiple participants
+</ParamField>
+
+<ParamField body="participant_ids" type="array of strings" required>
+  Array of numeric user IDs to include in the conversation. For `OneToOne`, provide exactly one user ID (the other participant). For `Group`, provide two or more user IDs.
+</ParamField>
+
+<ParamField body="message" type="object" required>
+  The first message to send in the new conversation.
+
+  <Expandable title="message fields">
+    <ParamField body="text" type="string">
+      The text content of the message. Maximum 10,000 characters. Either `text` or `attachments` must be present.
+    </ParamField>
+    <ParamField body="attachments" type="array of objects">
+      Media attachments to include in the message.
+
+      <Expandable title="attachment fields">
+        <ParamField body="media_id" type="string">
+          The media ID of an uploaded media item. Upload media using the v1.1 Media Upload endpoint before referencing it here.
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/dm_conversations" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "conversation_type": "OneToOne",
+    "participant_ids": ["783214"],
+    "message": {
+      "text": "Hey! Wanted to reach out directly."
+    }
+  }'
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+
+url = "https://api.twitter.com/2/dm_conversations"
+payload = {
+    "conversation_type": "OneToOne",
+    "participant_ids": ["783214"],
+    "message": {
+        "text": "Hey! Wanted to reach out directly."
+    }
+}
+headers = {
+    "Authorization": f"Bearer {oauth2_token}",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+
+```javascript Node.js
+const axios = require("axios");
+
+const oauth2Token = "YOUR_OAUTH2_USER_TOKEN";
+
+axios
+  .post(
+    "https://api.twitter.com/2/dm_conversations",
+    {
+      conversation_type: "OneToOne",
+      participant_ids: ["783214"],
+      message: {
+        text: "Hey! Wanted to reach out directly.",
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${oauth2Token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  )
+  .then((res) => console.log(res.data))
+  .catch((err) => console.error(err));
+```
+</CodeGroup>
+
+### Creating a Group DM
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/dm_conversations" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "conversation_type": "Group",
+    "participant_ids": ["783214", "6253282", "17874544"],
+    "message": {
+      "text": "Welcome to our group chat!"
+    }
+  }'
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "dm_conversation_id": "2244994945-783214",
+    "dm_event_id": "128341038123123712"
+  }
+}
+```
+
+---
+
+## POST /2/dm_conversations/:dm_conversation_id/messages
+
+Sends a message to an existing DM conversation identified by its conversation ID. Requires OAuth 2.0 with `dm.write` scope. The authenticated user must already be a participant in the conversation.
+
+### Path Parameters
+
+<ParamField path="dm_conversation_id" type="string" required>
+  The unique identifier of the existing DM conversation to send a message to.
+</ParamField>
+
+### Request Body
+
+<ParamField body="text" type="string">
+  The text content of the message. Maximum 10,000 characters. Either `text` or `attachments` must be provided.
+</ParamField>
+
+<ParamField body="attachments" type="array of objects">
+  Media attachments to include in the message.
+
+  <Expandable title="attachment fields">
+    <ParamField body="media_id" type="string">
+      The media ID of an already-uploaded media item.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/dm_conversations/2244994945-783214/messages" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Here is the doc link I mentioned!"
+  }'
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+conversation_id = "2244994945-783214"
+
+url = f"https://api.twitter.com/2/dm_conversations/{conversation_id}/messages"
+payload = {"text": "Here is the doc link I mentioned!"}
+headers = {
+    "Authorization": f"Bearer {oauth2_token}",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+
+```javascript Node.js
+const axios = require("axios");
+
+const oauth2Token = "YOUR_OAUTH2_USER_TOKEN";
+const conversationId = "2244994945-783214";
+
+axios
+  .post(
+    `https://api.twitter.com/2/dm_conversations/${conversationId}/messages`,
+    { text: "Here is the doc link I mentioned!" },
+    {
+      headers: {
+        Authorization: `Bearer ${oauth2Token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  )
+  .then((res) => console.log(res.data))
+  .catch((err) => console.error(err));
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "dm_conversation_id": "2244994945-783214",
+    "dm_event_id": "128341038123199999"
+  }
+}
+```
+
+---
+
+## POST /2/dm_conversations/with/:participant_id/messages
+
+Sends a message to the 1:1 conversation between the authenticated user and the specified participant. If no conversation exists yet, this endpoint creates one and delivers the message. This is the simplest way to send a DM when you know the recipient's user ID but not the conversation ID.
+
+### Path Parameters
+
+<ParamField path="participant_id" type="string" required>
+  The numeric user ID of the recipient.
+</ParamField>
+
+### Request Body
+
+<ParamField body="text" type="string">
+  The text content of the message. Maximum 10,000 characters. Either `text` or `attachments` must be provided.
+</ParamField>
+
+<ParamField body="attachments" type="array of objects">
+  Media attachments to include.
+
+  <Expandable title="attachment fields">
+    <ParamField body="media_id" type="string">
+      The media ID of an already-uploaded media item.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/dm_conversations/with/783214/messages" \
+  -H "Authorization: Bearer $OAUTH2_USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hi! Just following up on our conversation."
+  }'
+```
+
+```python Python
+import requests
+
+oauth2_token = "YOUR_OAUTH2_USER_TOKEN"
+participant_id = "783214"
+
+url = f"https://api.twitter.com/2/dm_conversations/with/{participant_id}/messages"
+payload = {"text": "Hi! Just following up on our conversation."}
+headers = {
+    "Authorization": f"Bearer {oauth2_token}",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+
+```javascript Node.js
+const axios = require("axios");
+
+const oauth2Token = "YOUR_OAUTH2_USER_TOKEN";
+const participantId = "783214";
+
+axios
+  .post(
+    `https://api.twitter.com/2/dm_conversations/with/${participantId}/messages`,
+    { text: "Hi! Just following up on our conversation." },
+    {
+      headers: {
+        Authorization: `Bearer ${oauth2Token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  )
+  .then((res) => console.log(res.data))
+  .catch((err) => console.error(err));
+```
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "dm_conversation_id": "2244994945-783214",
+    "dm_event_id": "128341038123200001"
+  }
+}
+```
+
+---
+
+## Response Fields
+
+<ResponseField name="dm_conversation_id" type="string">
+  The unique identifier of the DM conversation. For 1:1 conversations, this follows the format `{lower_user_id}-{higher_user_id}`. For group conversations, it is a unique alphanumeric string.
+</ResponseField>
+
+<ResponseField name="dm_event_id" type="string">
+  The unique identifier of the specific DM event (message) that was created.
+</ResponseField>
+
+---
+
+## Choosing the Right Endpoint
+
+| Scenario | Recommended endpoint |
+|----------|---------------------|
+| Start a brand new 1:1 DM | `POST /2/dm_conversations` |
+| Start a group DM | `POST /2/dm_conversations` |
+| Continue an existing conversation (you have the ID) | `POST /2/dm_conversations/:id/messages` |
+| Send a DM when you only know the recipient's user ID | `POST /2/dm_conversations/with/:participant_id/messages` |

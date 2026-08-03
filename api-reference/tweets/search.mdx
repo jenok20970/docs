@@ -1,0 +1,286 @@
+---
+title: "GET /2/tweets/search — Search Recent and All Tweets"
+sidebarTitle: "Search"
+description: "Search tweets from the last 7 days or the full archive. Build queries with operators like from:, has:media, is:retweet, and lang: filters."
+---
+
+The tweet search endpoints let you retrieve tweets that match a query you define using X's powerful operator syntax. Use `search/recent` to scan the last 7 days on any paid tier, or `search/all` for full-archive access dating back to the very first tweet in 2006 — available on Pro and Enterprise plans. Combine operators with field and expansion parameters to get exactly the data your application needs in one call.
+
+## GET /2/tweets/search/recent
+
+Search through tweets posted in the last **7 days** that match your query.
+
+```
+GET https://api.twitter.com/2/tweets/search/recent
+```
+
+### Query Parameters
+
+<ParamField query="query" type="string" required>
+  Your search query string. Can be up to 512 characters on Basic, or up to 1,024 characters on
+  Pro/Enterprise. Supports the full operator syntax described in the [Query Operators](#query-operators)
+  table below. Example: `"OpenAI -is:retweet lang:en"`
+</ParamField>
+
+<ParamField query="max_results" type="integer">
+  The maximum number of results to return per page. Minimum `10`, maximum `100`, default `10`.
+</ParamField>
+
+<ParamField query="start_time" type="string (ISO 8601)">
+  The earliest UTC timestamp from which results are returned. Must be within the last 7 days.
+  Format: `YYYY-MM-DDTHH:mm:ssZ`
+</ParamField>
+
+<ParamField query="end_time" type="string (ISO 8601)">
+  The latest UTC timestamp to which results are returned. Must be at least 10 seconds before the
+  request time. Format: `YYYY-MM-DDTHH:mm:ssZ`
+</ParamField>
+
+<ParamField query="since_id" type="string">
+  Return results with a tweet ID greater than (more recent than) this ID. Useful for
+  incremental polling. Takes precedence over `start_time` if both are specified.
+</ParamField>
+
+<ParamField query="until_id" type="string">
+  Return results with a tweet ID less than (older than) this ID. Takes precedence over
+  `end_time` if both are specified.
+</ParamField>
+
+<ParamField query="next_token" type="string">
+  Token returned by a previous response's `meta.next_token` field. Use it to retrieve the next
+  page of results.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Alias for `next_token`. You may use either parameter name to paginate.
+</ParamField>
+
+<ParamField query="sort_order" type="string">
+  The order in which results are returned. Options: `recency` (newest first, default) or
+  `relevancy` (most relevant first).
+</ParamField>
+
+<ParamField query="tweet.fields" type="string">
+  Comma-separated tweet fields to include. Available values:
+  `attachments`, `author_id`, `context_annotations`, `conversation_id`, `created_at`,
+  `edit_controls`, `entities`, `geo`, `id`, `in_reply_to_user_id`, `lang`,
+  `public_metrics`, `referenced_tweets`, `reply_settings`, `source`, `text`, `withheld`
+</ParamField>
+
+<ParamField query="expansions" type="string">
+  Comma-separated expansion keys. Available values:
+  `author_id`, `attachments.media_keys`, `attachments.poll_ids`,
+  `entities.mentions.username`, `geo.place_id`, `in_reply_to_user_id`,
+  `referenced_tweets.id`, `referenced_tweets.id.author_id`
+</ParamField>
+
+<ParamField query="user.fields" type="string">
+  Comma-separated user fields to return on expanded user objects. Requires a user-based
+  expansion. Available values:
+  `created_at`, `description`, `id`, `location`, `name`, `profile_image_url`,
+  `protected`, `public_metrics`, `url`, `username`, `verified`
+</ParamField>
+
+<ParamField query="media.fields" type="string">
+  Comma-separated media fields to return on expanded media objects. Requires
+  `attachments.media_keys` in `expansions`. Available values:
+  `duration_ms`, `height`, `media_key`, `preview_image_url`, `public_metrics`,
+  `type`, `url`, `width`
+</ParamField>
+
+<ParamField query="place.fields" type="string">
+  Comma-separated place fields to return on expanded geo objects. Requires `geo.place_id` in
+  `expansions`. Available values: `contained_within`, `country`, `country_code`, `full_name`,
+  `geo`, `id`, `name`, `place_type`
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://api.twitter.com/2/tweets/search/recent?\
+query=%22OpenAI%22%20-is%3Aretweet%20lang%3Aen&\
+tweet.fields=created_at,public_metrics,author_id&\
+max_results=20" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "1760203948271431700",
+      "text": "OpenAI just shipped a new model and the benchmarks are incredible.",
+      "created_at": "2024-02-21T14:05:22.000Z",
+      "author_id": "987654321",
+      "public_metrics": {
+        "retweet_count": 204,
+        "reply_count": 87,
+        "like_count": 1923,
+        "quote_count": 41,
+        "bookmark_count": 315,
+        "impression_count": 52700
+      },
+      "edit_history_tweet_ids": ["1760203948271431700"]
+    },
+    {
+      "id": "1760198234107019264",
+      "text": "The OpenAI API pricing update makes a lot of projects more viable now.",
+      "created_at": "2024-02-21T13:42:47.000Z",
+      "author_id": "123456789",
+      "public_metrics": {
+        "retweet_count": 56,
+        "reply_count": 12,
+        "like_count": 432,
+        "quote_count": 9,
+        "bookmark_count": 78,
+        "impression_count": 11400
+      },
+      "edit_history_tweet_ids": ["1760198234107019264"]
+    }
+  ],
+  "meta": {
+    "newest_id": "1760203948271431700",
+    "oldest_id": "1760198234107019264",
+    "result_count": 20,
+    "next_token": "7140dibdnow9c7btw3w3y28b2lkme01z9rnkfv0kxe"
+  }
+}
+```
+
+---
+
+## GET /2/tweets/search/all
+
+Search the **full archive** of public tweets, going all the way back to the first tweet posted in March 2006.
+
+```
+GET https://api.twitter.com/2/tweets/search/all
+```
+
+<Note>
+  `GET /2/tweets/search/all` requires a **Pro** or **Enterprise** plan. Attempts to call this
+  endpoint on Free or Basic tiers will receive a `403 Forbidden` response.
+</Note>
+
+This endpoint accepts the same parameters as `search/recent`, with one key difference: `start_time` and `end_time` are not limited to a 7-day window — you can query any date range from 2006-03-21 through the present.
+
+### Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://api.twitter.com/2/tweets/search/all?\
+query=%22climate%20change%22%20has%3Amedia%20-is%3Aretweet&\
+start_time=2020-01-01T00%3A00%3A00Z&\
+end_time=2020-12-31T23%3A59%3A59Z&\
+tweet.fields=created_at,public_metrics,geo&\
+max_results=100" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "1209492454024982528",
+      "text": "New climate report shows 2020 was among the hottest years on record [video]",
+      "created_at": "2020-12-24T09:17:03.000Z",
+      "public_metrics": {
+        "retweet_count": 1540,
+        "reply_count": 234,
+        "like_count": 7821,
+        "quote_count": 312,
+        "bookmark_count": 895,
+        "impression_count": 213400
+      },
+      "edit_history_tweet_ids": ["1209492454024982528"]
+    }
+  ],
+  "meta": {
+    "newest_id": "1209492454024982528",
+    "oldest_id": "1205712938471243777",
+    "result_count": 100,
+    "next_token": "b26v89c19zqg8o3fo7gesq5ebizbt3vln3zsd3wr3"
+  }
+}
+```
+
+---
+
+## Query Operators
+
+Build your search query by combining these operators. Separate multiple operators with a space (AND) or use `OR` explicitly. Negate any operator with a `-` prefix.
+
+| Operator | Description | Example |
+|---|---|---|
+| `keyword` | Matches tweets containing the word. | `twitter` |
+| `"phrase"` | Matches tweets containing the exact phrase. | `"developer platform"` |
+| `from:username` | Matches tweets posted by the specified user. | `from:XDevelopers` |
+| `to:username` | Matches tweets directed at the specified user. | `to:XDevelopers` |
+| `@mention` | Matches tweets that mention the specified user. | `@XDevelopers` |
+| `#hashtag` | Matches tweets containing the specified hashtag. | `#BuildOnX` |
+| `url:` | Matches tweets containing the specified URL or domain. | `url:developer.x.com` |
+| `has:media` | Matches tweets that contain any media (photo, video, GIF). | `news has:media` |
+| `has:links` | Matches tweets that contain at least one link. | `has:links -is:retweet` |
+| `has:images` | Matches tweets that contain at least one image. | `has:images lang:en` |
+| `has:videos` | Matches tweets that contain a native video. | `#tutorial has:videos` |
+| `has:hashtags` | Matches tweets that contain at least one hashtag. | `news has:hashtags` |
+| `has:geo` | Matches tweets that contain a geo location tag. | `concert has:geo` |
+| `is:retweet` | Matches only retweets. Negate with `-is:retweet` to exclude retweets. | `-is:retweet` |
+| `is:reply` | Matches only reply tweets. | `-is:reply` |
+| `is:quote` | Matches only quote tweets. | `is:quote from:XDevelopers` |
+| `is:verified` | Matches tweets from verified accounts. | `is:verified has:media` |
+| `lang:` | Matches tweets detected as the specified BCP 47 language code. | `lang:en`, `lang:ja` |
+| `place_country:` | Matches tweets tagged with the specified ISO 3166-1 alpha-2 country code. | `place_country:US` |
+| `conversation_id:` | Matches tweets that are replies within the specified conversation thread. | `conversation_id:1234567890` |
+| `-operator` | Negates the operator — excludes matching tweets. | `-is:retweet -is:reply` |
+| `AND` (space) | All space-separated operators must match (implicit AND). | `cats dogs` |
+| `OR` | Either operator must match. Must be uppercase. | `cats OR dogs` |
+
+<Tip>
+  Wrap complex OR expressions in parentheses to control precedence:
+  `(cats OR dogs) has:media -is:retweet lang:en`
+</Tip>
+
+---
+
+## Response Fields
+
+<ResponseField name="data" type="array of tweet objects">
+  An array of tweets matching your query, ordered by `sort_order`. Each object contains `id`,
+  `text`, `edit_history_tweet_ids`, and any additional fields you requested via `tweet.fields`.
+</ResponseField>
+
+<ResponseField name="includes" type="object">
+  Contains expanded objects referenced by tweets in `data`. May contain `users`, `media`,
+  `places`, `polls`, and `tweets` (referenced/quoted tweets) sub-arrays depending on the
+  `expansions` you requested.
+</ResponseField>
+
+<ResponseField name="meta.result_count" type="integer">
+  The number of results returned in this page of the response.
+</ResponseField>
+
+<ResponseField name="meta.newest_id" type="string">
+  The ID of the most recent tweet in this page of results. Store this to use as `since_id`
+  when polling for new tweets.
+</ResponseField>
+
+<ResponseField name="meta.oldest_id" type="string">
+  The ID of the oldest tweet in this page of results.
+</ResponseField>
+
+<ResponseField name="meta.next_token" type="string">
+  A pagination token you can pass as `next_token` (or `pagination_token`) in a subsequent
+  request to retrieve the next page of results. Absent when you are on the last page.
+</ResponseField>

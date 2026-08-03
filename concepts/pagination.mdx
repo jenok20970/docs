@@ -1,0 +1,293 @@
+---
+title: "Pagination in the X API v2: Next and Previous Tokens"
+sidebarTitle: "Pagination"
+description: "Master cursor-based pagination in X API v2—navigate result sets with next_token and previous_token, control page size, and handle timeline pagination."
+---
+
+The X API v2 uses **cursor-based pagination** rather than traditional page-number pagination. Instead of asking for "page 3 of results," you ask for "the next page after this cursor." This approach is more reliable for large, frequently updated datasets like Tweets—it prevents you from seeing duplicate results or missing records when new content is added between requests.
+
+---
+
+## The `meta` Object
+
+Every paginated endpoint includes a `meta` object at the top level of the response. This object describes the current page of results and provides the cursors you need to navigate forward and backward.
+
+<ResponseField name="result_count" type="integer">
+  The number of results returned in the current page. Note that this may be less than your requested `max_results` if fewer matching results exist.
+</ResponseField>
+
+<ResponseField name="next_token" type="string">
+  An opaque cursor string that points to the next page of results. Pass this value as `pagination_token` in your next request. If `next_token` is absent, you have reached the last page.
+</ResponseField>
+
+<ResponseField name="previous_token" type="string">
+  An opaque cursor string that points to the previous page of results. Pass this value as `pagination_token` to page backward. Only present when you are not on the first page.
+</ResponseField>
+
+<ResponseField name="newest_id" type="string">
+  The Tweet ID of the most recent result on the current page. Useful for incremental fetching—save this value and pass it as `since_id` on your next run to fetch only new Tweets.
+</ResponseField>
+
+<ResponseField name="oldest_id" type="string">
+  The Tweet ID of the oldest result on the current page. Useful when you want to continue fetching backward in time.
+</ResponseField>
+
+### Example `meta` Object
+
+```json
+{
+  "data": [ /* array of Tweet objects */ ],
+  "meta": {
+    "newest_id": "1654321098765432199",
+    "oldest_id": "1654321098765431000",
+    "result_count": 10,
+    "next_token": "avdjfk3k2ndlsdfnwenf093nfks",
+    "previous_token": "bvuicm4l3oembsgoxfog104oglt"
+  }
+}
+```
+
+---
+
+## How to Paginate
+
+Pagination follows a simple request-response loop:
+
+<Steps>
+  <Step title="Make the initial request">
+    Call the endpoint with your desired query parameters and `max_results`. Save the `next_token` from the `meta` object in the response.
+
+    ```http
+    GET /2/tweets/search/recent?query=XDev&max_results=10&tweet.fields=created_at,public_metrics
+    Authorization: Bearer YOUR_BEARER_TOKEN
+    ```
+  </Step>
+  <Step title="Pass next_token as pagination_token">
+    Include the `pagination_token` parameter in your next request, set to the value of `next_token` from the previous response. Keep all other query parameters the same.
+
+    ```http
+    GET /2/tweets/search/recent?query=XDev&max_results=10&tweet.fields=created_at,public_metrics&pagination_token=avdjfk3k2ndlsdfnwenf093nfks
+    Authorization: Bearer YOUR_BEARER_TOKEN
+    ```
+  </Step>
+  <Step title="Repeat until next_token is absent">
+    Continue requesting the next page using the new `next_token` from each response. When the `meta` object no longer contains a `next_token`, you have consumed all available results.
+  </Step>
+</Steps>
+
+<Note>
+  Tokens are opaque strings—don't attempt to decode or modify them. Their internal format may change. Always use the exact value returned by the API without modification.
+</Note>
+
+---
+
+## The `max_results` Parameter
+
+Use `max_results` to control how many results are returned per page. Default and maximum values vary by endpoint:
+
+| Endpoint | Default | Minimum | Maximum |
+|----------|---------|---------|---------|
+| `GET /2/tweets/search/recent` | 10 | 1 | 100 |
+| `GET /2/tweets/search/all` | 10 | 1 | 500 |
+| `GET /2/users/:id/tweets` | 10 | 1 | 100 |
+| `GET /2/users/:id/timelines/reverse_chronological` | 100 | 1 | 100 |
+| `GET /2/users/:id/followers` | 100 | 1 | 1000 |
+| `GET /2/users/:id/following` | 100 | 1 | 1000 |
+| `GET /2/lists/:id/tweets` | 100 | 1 | 100 |
+| `GET /2/spaces/search` | 100 | 1 | 100 |
+
+Setting `max_results` to its maximum value reduces the total number of API requests you need to page through a large result set, helping you stay within your rate limits.
+
+---
+
+## Code Examples
+
+### Python: Fetch All Pages in a Loop
+
+```python
+import requests
+import time
+
+BEARER_TOKEN = "YOUR_BEARER_TOKEN"
+
+def get_all_tweets(query: str, max_results: int = 100) -> list[dict]:
+    """
+    Paginate through all results for a recent search query
+    and return every Tweet as a list.
+    """
+    url = "https://api.twitter.com/2/tweets/search/recent"
+    headers = {"Authorization": f"Bearer {BEARER_TOKEN}"}
+    params = {
+        "query": query,
+        "max_results": max_results,
+        "tweet.fields": "created_at,author_id,public_metrics",
+    }
+
+    all_tweets = []
+    next_token = None
+
+    while True:
+        if next_token:
+            params["pagination_token"] = next_token
+        elif "pagination_token" in params:
+            del params["pagination_token"]
+
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        body = response.json()
+
+        tweets = body.get("data", [])
+        all_tweets.extend(tweets)
+
+        meta = body.get("meta", {})
+        next_token = meta.get("next_token")
+
+        print(f"Fetched {len(tweets)} tweets (total so far: {len(all_tweets)})")
+
+        if not next_token:
+            print("No more pages. Done.")
+            break
+
+        # Be a good API citizen: respect rate limits between pages
+        time.sleep(1)
+
+    return all_tweets
+
+
+tweets = get_all_tweets("from:XDevelopers", max_results=100)
+print(f"Total tweets retrieved: {len(tweets)}")
+```
+
+### JavaScript: Async Generator Pattern
+
+The async generator pattern is a clean, idiomatic way to lazily page through results in JavaScript—your calling code receives one page at a time without the generator function needing to know how many pages will be consumed.
+
+```javascript
+const BEARER_TOKEN = "YOUR_BEARER_TOKEN";
+
+/**
+ * Async generator that yields one page of Tweet results at a time.
+ * Automatically follows next_token until results are exhausted.
+ *
+ * @param {string} query - The search query string
+ * @param {number} maxResults - Results per page (1–100)
+ */
+async function* searchRecentTweets(query, maxResults = 100) {
+  const baseUrl = "https://api.twitter.com/2/tweets/search/recent";
+  const headers = { Authorization: `Bearer ${BEARER_TOKEN}` };
+
+  let paginationToken = null;
+
+  do {
+    const params = new URLSearchParams({
+      query,
+      max_results: String(maxResults),
+      "tweet.fields": "created_at,author_id,public_metrics",
+    });
+
+    if (paginationToken) {
+      params.set("pagination_token", paginationToken);
+    }
+
+    const response = await fetch(`${baseUrl}?${params}`, { headers });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    const body = await response.json();
+
+    // Yield this page's data to the caller
+    yield body.data ?? [];
+
+    paginationToken = body.meta?.next_token ?? null;
+  } while (paginationToken);
+}
+
+// Usage: iterate over every page
+async function main() {
+  let total = 0;
+
+  for await (const page of searchRecentTweets("from:XDevelopers", 100)) {
+    console.log(`Page returned ${page.length} tweets`);
+    total += page.length;
+
+    // Process each tweet in this page
+    for (const tweet of page) {
+      console.log(`  [${tweet.created_at}] ${tweet.text.slice(0, 60)}...`);
+    }
+  }
+
+  console.log(`\nTotal tweets retrieved: ${total}`);
+}
+
+main().catch(console.error);
+```
+
+---
+
+## Time-Based Pagination for Timelines
+
+For timeline endpoints and `tweets/search/recent`, you can scope your results to a specific time window or anchor them to a known Tweet ID. These parameters work alongside cursor-based pagination.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `start_time` | ISO 8601 string | Return only Tweets created at or after this time. Example: `2024-01-01T00:00:00Z` |
+| `end_time` | ISO 8601 string | Return only Tweets created before this time. Must be at least 10 seconds before the request time. |
+| `since_id` | Tweet ID string | Return only Tweets with IDs greater than (i.e., more recent than) this ID. |
+| `until_id` | Tweet ID string | Return only Tweets with IDs less than (i.e., older than) this ID. |
+
+### Incremental Fetching with `since_id`
+
+A common pattern for polling-based apps is to save the `newest_id` from each run, then pass it as `since_id` on the next run to fetch only new Tweets:
+
+```python
+import requests
+import json
+import os
+
+BEARER_TOKEN = "YOUR_BEARER_TOKEN"
+STATE_FILE = "last_tweet_id.json"
+
+def load_since_id() -> str | None:
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE) as f:
+            return json.load(f).get("newest_id")
+    return None
+
+def save_since_id(newest_id: str) -> None:
+    with open(STATE_FILE, "w") as f:
+        json.dump({"newest_id": newest_id}, f)
+
+def fetch_new_tweets(query: str) -> list[dict]:
+    url = "https://api.twitter.com/2/tweets/search/recent"
+    headers = {"Authorization": f"Bearer {BEARER_TOKEN}"}
+    params = {
+        "query": query,
+        "max_results": 100,
+        "tweet.fields": "created_at,public_metrics",
+    }
+
+    since_id = load_since_id()
+    if since_id:
+        params["since_id"] = since_id
+
+    response = requests.get(url, headers=headers, params=params)
+    response.raise_for_status()
+    body = response.json()
+
+    tweets = body.get("data", [])
+    newest_id = body.get("meta", {}).get("newest_id")
+
+    if newest_id:
+        save_since_id(newest_id)
+
+    return tweets
+
+new_tweets = fetch_new_tweets("from:XDevelopers")
+print(f"Fetched {len(new_tweets)} new tweets since last run.")
+```
+
+<Note>
+  When paginating backward through time, preserve the `sort_order` you used on your initial request (default is `recency`). Changing the sort order mid-pagination produces unpredictable results and may cause you to miss records or see duplicates. Pass the same `sort_order` parameter on every page request in the same session.
+</Note>

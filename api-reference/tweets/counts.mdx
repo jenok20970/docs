@@ -1,0 +1,297 @@
+---
+title: "GET /2/tweets/counts — Tweet Volume Counts | X API"
+sidebarTitle: "Tweet Counts"
+description: "Get the count of public tweets matching a search query, bucketed by minute, hour, or day — without retrieving the tweet objects themselves."
+---
+
+The tweet counts endpoints return the **volume** of public tweets matching a search query over a time period, bucketed into minute-, hour-, or day-level intervals. Unlike the search endpoints, counts returns numeric data only — no tweet objects — making it ideal for trend analysis, campaign monitoring, and event tracking without consuming large amounts of your monthly read quota.
+
+## GET /2/tweets/counts/recent
+
+Get the tweet count for a query over the last **7 days**, bucketed by the specified granularity.
+
+```
+GET https://api.twitter.com/2/tweets/counts/recent
+```
+
+<Note>
+  `GET /2/tweets/counts/recent` is available to **Basic** plan and above. Free tier accounts
+  do not have access to this endpoint.
+</Note>
+
+### Query Parameters
+
+<ParamField query="query" type="string" required>
+  Your search query. Supports the same operator syntax as the search endpoints — keywords,
+  `from:`, `has:media`, `is:retweet`, etc. Maximum 512 characters on Basic; 1,024 on Pro/Enterprise.
+</ParamField>
+
+<ParamField query="start_time" type="string (ISO 8601)">
+  The start of the time window. Must be within the last 7 days. Defaults to 7 days ago if
+  omitted. Format: `YYYY-MM-DDTHH:mm:ssZ`
+</ParamField>
+
+<ParamField query="end_time" type="string (ISO 8601)">
+  The end of the time window. Defaults to the current time if omitted. Must be at least
+  10 seconds before the request time. Format: `YYYY-MM-DDTHH:mm:ssZ`
+</ParamField>
+
+<ParamField query="since_id" type="string">
+  Count tweets with IDs more recent than this ID. Takes precedence over `start_time` if
+  both are specified.
+</ParamField>
+
+<ParamField query="until_id" type="string">
+  Count tweets with IDs older than this ID. Takes precedence over `end_time` if both are
+  specified.
+</ParamField>
+
+<ParamField query="next_token" type="string">
+  Pagination token returned by a previous response. Pass it to retrieve the next page of
+  count buckets.
+</ParamField>
+
+<ParamField query="pagination_token" type="string">
+  Alias for `next_token`. Either parameter name is accepted.
+</ParamField>
+
+<ParamField query="granularity" type="string">
+  The size of each time bucket. Options: `minute`, `hour`, `day`. Default: `day`.
+  Use `minute` for fine-grained spike detection, `hour` or `day` for broader trend analysis.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://api.twitter.com/2/tweets/counts/recent?\
+query=%23MachineLearning%20-is%3Aretweet&\
+granularity=day&\
+start_time=2024-02-14T00%3A00%3A00Z&\
+end_time=2024-02-21T00%3A00%3A00Z" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": [
+    {
+      "start": "2024-02-14T00:00:00.000Z",
+      "end": "2024-02-15T00:00:00.000Z",
+      "tweet_count": 1240
+    },
+    {
+      "start": "2024-02-15T00:00:00.000Z",
+      "end": "2024-02-16T00:00:00.000Z",
+      "tweet_count": 1875
+    },
+    {
+      "start": "2024-02-16T00:00:00.000Z",
+      "end": "2024-02-17T00:00:00.000Z",
+      "tweet_count": 2104
+    },
+    {
+      "start": "2024-02-17T00:00:00.000Z",
+      "end": "2024-02-18T00:00:00.000Z",
+      "tweet_count": 1033
+    },
+    {
+      "start": "2024-02-18T00:00:00.000Z",
+      "end": "2024-02-19T00:00:00.000Z",
+      "tweet_count": 892
+    },
+    {
+      "start": "2024-02-19T00:00:00.000Z",
+      "end": "2024-02-20T00:00:00.000Z",
+      "tweet_count": 956
+    },
+    {
+      "start": "2024-02-20T00:00:00.000Z",
+      "end": "2024-02-21T00:00:00.000Z",
+      "tweet_count": 640
+    }
+  ],
+  "meta": {
+    "total_tweet_count": 8740,
+    "newest_id": "1760203948271431700",
+    "oldest_id": "1757302140293894144"
+  }
+}
+```
+
+---
+
+## GET /2/tweets/counts/all
+
+Get the tweet count for a query across the **full archive** of public tweets, dating back to March 2006.
+
+```
+GET https://api.twitter.com/2/tweets/counts/all
+```
+
+<Note>
+  `GET /2/tweets/counts/all` requires a **Pro** or **Enterprise** plan. Calls from Basic or
+  Free tier accounts will receive a `403 Forbidden` response.
+</Note>
+
+This endpoint accepts the same parameters as `counts/recent`. The key difference is that `start_time` and `end_time` are not limited to a 7-day window — you can query any date range from 2006-03-21 through today.
+
+### Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "https://api.twitter.com/2/tweets/counts/all?\
+query=%22climate%20change%22%20-is%3Aretweet%20lang%3Aen&\
+granularity=day&\
+start_time=2024-01-01T00%3A00%3A00Z&\
+end_time=2024-01-08T00%3A00%3A00Z" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": [
+    {
+      "start": "2024-01-01T00:00:00.000Z",
+      "end": "2024-01-02T00:00:00.000Z",
+      "tweet_count": 54210
+    },
+    {
+      "start": "2024-01-02T00:00:00.000Z",
+      "end": "2024-01-03T00:00:00.000Z",
+      "tweet_count": 48937
+    },
+    {
+      "start": "2024-01-03T00:00:00.000Z",
+      "end": "2024-01-04T00:00:00.000Z",
+      "tweet_count": 51804
+    },
+    {
+      "start": "2024-01-04T00:00:00.000Z",
+      "end": "2024-01-05T00:00:00.000Z",
+      "tweet_count": 67401
+    },
+    {
+      "start": "2024-01-05T00:00:00.000Z",
+      "end": "2024-01-06T00:00:00.000Z",
+      "tweet_count": 72130
+    },
+    {
+      "start": "2024-01-06T00:00:00.000Z",
+      "end": "2024-01-07T00:00:00.000Z",
+      "tweet_count": 58902
+    },
+    {
+      "start": "2024-01-07T00:00:00.000Z",
+      "end": "2024-01-08T00:00:00.000Z",
+      "tweet_count": 44815
+    }
+  ],
+  "meta": {
+    "total_tweet_count": 398199,
+    "newest_id": "1744044801923596288",
+    "oldest_id": "1741913600000000000",
+    "next_token": "c29tZXBhZ2luYXRpb250b2tlbg"
+  }
+}
+```
+
+---
+
+## Response Fields
+
+<ResponseField name="data" type="array of count objects">
+  An array of time-bucket objects, one per granularity interval, ordered chronologically
+  (oldest first).
+
+  <Expandable title="Count object fields">
+    <ResponseField name="start" type="string (ISO 8601)">
+      The UTC start timestamp of this bucket. Inclusive.
+    </ResponseField>
+    <ResponseField name="end" type="string (ISO 8601)">
+      The UTC end timestamp of this bucket. Exclusive — the next bucket's `start` equals
+      this bucket's `end`.
+    </ResponseField>
+    <ResponseField name="tweet_count" type="integer">
+      The number of tweets matching your query that were posted during this interval.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta.total_tweet_count" type="integer">
+  The sum of all `tweet_count` values across every bucket in the response. If the results
+  span multiple pages, this reflects the total for the current page only.
+</ResponseField>
+
+<ResponseField name="meta.newest_id" type="string">
+  The ID of the most recent tweet counted in this response.
+</ResponseField>
+
+<ResponseField name="meta.oldest_id" type="string">
+  The ID of the oldest tweet counted in this response.
+</ResponseField>
+
+<ResponseField name="meta.next_token" type="string">
+  A pagination token to retrieve the next page of count buckets. Absent when you are
+  on the last page.
+</ResponseField>
+
+---
+
+## Use Case Examples
+
+### Monitoring Brand Mentions
+
+Track how often your brand is mentioned over time to detect spikes driven by press coverage, viral content, or customer service issues.
+
+```bash
+# Count daily mentions of your brand, excluding retweets
+curl -X GET "https://api.twitter.com/2/tweets/counts/recent?\
+query=%22AcmeCorp%22%20OR%20%40AcmeCorp%20-is%3Aretweet&\
+granularity=day" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+<Tip>
+  Combine `counts/recent` with `search/recent` to first gauge volume, then pull the actual
+  tweets for sentiment analysis only when counts exceed a threshold — conserving your monthly
+  read quota.
+</Tip>
+
+### Tracking Event Volume
+
+Measure how conversation volume around a live event or product launch builds and peaks by using `granularity=hour` during the event window.
+
+```bash
+# Hourly tweet volume for a product launch hashtag
+curl -X GET "https://api.twitter.com/2/tweets/counts/recent?\
+query=%23LaunchDay2024%20-is%3Aretweet&\
+granularity=hour&\
+start_time=2024-03-15T08%3A00%3A00Z&\
+end_time=2024-03-15T20%3A00%3A00Z" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```
+
+### Measuring Campaign Reach
+
+Compare tweet volume before, during, and after a marketing campaign to quantify organic amplification. Use `counts/all` (Pro+) to benchmark against historical campaigns.
+
+```bash
+# Compare campaign hashtag volume over four weeks
+curl -X GET "https://api.twitter.com/2/tweets/counts/all?\
+query=%23SummerSale%20-is%3Aretweet&\
+granularity=day&\
+start_time=2023-06-01T00%3A00%3A00Z&\
+end_time=2023-06-29T00%3A00%3A00Z" \
+  -H "Authorization: Bearer $BEARER_TOKEN"
+```

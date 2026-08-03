@@ -1,0 +1,276 @@
+---
+title: "X API Data Objects: Tweets, Users, Spaces, and More"
+sidebarTitle: "Data Objects"
+description: "Explore the core data objects in the X API v2—Tweets, Users, Spaces, and Lists—and understand every field each object exposes."
+---
+
+The X API v2 is built around a consistent, structured data model. Every resource you interact with—whether you're reading a Tweet, looking up a user profile, or joining a Space—is represented as a typed object with a well-defined set of fields. By default, the API returns only a minimal set of fields for each object; you can request additional fields explicitly using the `fields` and `expansions` parameters (see [Fields & Expansions](/concepts/fields-expansions)).
+
+This page describes the four primary data objects: **Tweet**, **User**, **Space**, and **List**, along with all the fields each object exposes.
+
+---
+
+## Tweet Object
+
+A Tweet is the fundamental unit of content on X. Every Tweet object has a unique `id` and a `text` body; all other fields are optional and must be requested explicitly.
+
+### Fields
+
+<ResponseField name="id" type="string" required>
+  The unique identifier for the Tweet. IDs are large integers serialized as strings to preserve precision in languages that use 64-bit floats (e.g., JavaScript). Always treat this field as a string.
+
+  Example: `"1654321098765432100"`
+</ResponseField>
+
+<ResponseField name="text" type="string" required>
+  The full UTF-8 text of the Tweet, including any URLs, mentions, hashtags, and cashtags. For Retweets the text may be truncated—use `referenced_tweets` to retrieve the full original text.
+</ResponseField>
+
+<ResponseField name="author_id" type="string">
+  The unique identifier of the User who authored the Tweet. To hydrate this into a full User object, include `author_id` in your `expansions` parameter.
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  The UTC date and time when the Tweet was created, formatted as an ISO 8601 string.
+
+  Example: `"2024-03-15T12:34:56.000Z"`
+</ResponseField>
+
+<ResponseField name="attachments" type="object">
+  Groups media and poll keys attached to the Tweet.
+
+  | Sub-field | Type | Description |
+  |-----------|------|-------------|
+  | `media_keys` | string[] | Keys for attached media items. Expand with `attachments.media_keys` to retrieve full media objects. |
+  | `poll_ids` | string[] | IDs of attached polls. Expand with `attachments.poll_ids` to retrieve poll objects. |
+</ResponseField>
+
+<ResponseField name="entities" type="object">
+  Parsed entities extracted from the Tweet text, including URLs, mentions, hashtags, cashtags, and annotations.
+
+  | Sub-field | Type | Description |
+  |-----------|------|-------------|
+  | `urls` | object[] | Expanded URLs found in the text, including preview images and unwound URLs. |
+  | `mentions` | object[] | `@username` mentions, each including `id` and `username`. |
+  | `hashtags` | object[] | `#hashtag` tags found in the text. |
+  | `cashtags` | object[] | `$cashtag` symbols found in the text. |
+  | `annotations` | object[] | Named-entity annotations (people, places, products) with a confidence probability. |
+</ResponseField>
+
+<ResponseField name="public_metrics" type="object">
+  Publicly visible engagement counts for the Tweet.
+
+  | Sub-field | Type | Description |
+  |-----------|------|-------------|
+  | `retweet_count` | integer | Number of times the Tweet has been Retweeted. |
+  | `reply_count` | integer | Number of direct replies to the Tweet. |
+  | `like_count` | integer | Number of likes the Tweet has received. |
+  | `quote_count` | integer | Number of times the Tweet has been Quote-Tweeted. |
+  | `bookmark_count` | integer | Number of times the Tweet has been bookmarked. |
+  | `impression_count` | integer | Total number of times the Tweet has been seen. |
+</ResponseField>
+
+<ResponseField name="referenced_tweets" type="array">
+  An array of Tweet references that indicates how this Tweet relates to others. Each entry contains:
+
+  | Sub-field | Type | Description |
+  |-----------|------|-------------|
+  | `type` | string | Relationship type: `retweeted`, `quoted`, or `replied_to`. |
+  | `id` | string | The ID of the referenced Tweet. |
+</ResponseField>
+
+<ResponseField name="in_reply_to_user_id" type="string">
+  If the Tweet is a reply, this field contains the User ID of the account the Tweet is in reply to. Only present for reply Tweets.
+</ResponseField>
+
+<ResponseField name="lang" type="string">
+  The BCP 47 language tag automatically detected by X for the Tweet's content.
+
+  Example: `"en"`, `"ja"`, `"es"`
+</ResponseField>
+
+<ResponseField name="possibly_sensitive" type="boolean">
+  Indicates whether the Tweet may contain sensitive content (e.g., adult material), as flagged either by the author or by X's automated systems.
+</ResponseField>
+
+### Example Tweet JSON
+
+```json
+{
+  "id": "1654321098765432100",
+  "text": "Excited to announce the X API v2 is now generally available! 🚀 https://t.co/examplelink #XDev",
+  "author_id": "2244994945",
+  "created_at": "2024-03-15T12:34:56.000Z",
+  "lang": "en",
+  "possibly_sensitive": false,
+  "attachments": {
+    "media_keys": ["3_1234567890123456789"]
+  },
+  "entities": {
+    "hashtags": [{ "start": 85, "end": 90, "tag": "XDev" }],
+    "urls": [
+      {
+        "start": 62,
+        "end": 84,
+        "url": "https://t.co/examplelink",
+        "expanded_url": "https://developer.x.com",
+        "display_url": "developer.x.com"
+      }
+    ]
+  },
+  "public_metrics": {
+    "retweet_count": 412,
+    "reply_count": 87,
+    "like_count": 2103,
+    "quote_count": 56,
+    "bookmark_count": 194,
+    "impression_count": 84200
+  },
+  "referenced_tweets": []
+}
+```
+
+---
+
+## User Object
+
+A User object represents an X account. User objects are returned directly from user-lookup endpoints and can also be included as expansions when fetching Tweets.
+
+### Fields
+
+<ResponseField name="id" type="string" required>
+  The unique identifier for the User account. Treat as a string to avoid precision loss.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  The display name of the user as shown on their profile. This can be changed by the user at any time.
+
+  Example: `"X Dev"`
+</ResponseField>
+
+<ResponseField name="username" type="string" required>
+  The account's unique `@handle`, without the `@` symbol. Usernames are case-insensitive and unique across the platform.
+
+  Example: `"XDevelopers"`
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  The UTC date and time when the account was created.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  The text of the user's profile bio. May include entities such as URLs and mentions; request `user.fields=entities` to retrieve parsed entity data.
+</ResponseField>
+
+<ResponseField name="public_metrics" type="object">
+  Publicly visible counts from the user's profile.
+
+  | Sub-field | Type | Description |
+  |-----------|------|-------------|
+  | `followers_count` | integer | Number of accounts following this user. |
+  | `following_count` | integer | Number of accounts this user follows. |
+  | `tweet_count` | integer | Total number of Tweets (including Retweets) authored by this user. |
+  | `listed_count` | integer | Number of public Lists this user is a member of. |
+</ResponseField>
+
+<ResponseField name="location" type="string">
+  The freeform location text from the user's profile. This field is self-reported and is not verified or structured.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The URL specified in the user's profile bio. Returns the `t.co` shortened version; request `user.fields=entities` to get the expanded URL.
+</ResponseField>
+
+<ResponseField name="verified" type="boolean">
+  Indicates whether the user has a legacy verified badge (blue checkmark from before 2023). For subscription verification status, see `verified_type`.
+</ResponseField>
+
+---
+
+## Space Object
+
+Spaces are live audio conversations on X. A Space object captures the current state of a Space and its key metadata.
+
+### Fields
+
+<ResponseField name="id" type="string" required>
+  The unique identifier for the Space.
+</ResponseField>
+
+<ResponseField name="state" type="string" required>
+  The current status of the Space. Possible values:
+
+  | Value | Description |
+  |-------|-------------|
+  | `live` | The Space is currently broadcasting. |
+  | `scheduled` | The Space is scheduled for a future start time. |
+  | `ended` | The Space has finished broadcasting. |
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  The title of the Space as set by the host.
+</ResponseField>
+
+<ResponseField name="host_ids" type="string[]">
+  An array of User IDs for all hosts of the Space (the creator plus any co-hosts). Expand with `expansions=host_ids` to retrieve full User objects.
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  The UTC date and time when the Space was created (i.e., when the host first started it or scheduled it).
+</ResponseField>
+
+<ResponseField name="scheduled_start" type="string (ISO 8601)">
+  For scheduled Spaces, the UTC date and time the Space is set to begin. Only present when `state` is `scheduled`.
+</ResponseField>
+
+<ResponseField name="participant_count" type="integer">
+  The number of participants currently listening to the Space. Only available for live Spaces.
+</ResponseField>
+
+<ResponseField name="speaker_ids" type="string[]">
+  An array of User IDs for users who have spoken or are currently speaking in the Space.
+</ResponseField>
+
+<ResponseField name="lang" type="string">
+  The BCP 47 language tag set by the host for the Space.
+</ResponseField>
+
+---
+
+## List Object
+
+Lists are curated collections of X accounts. The List object exposes both the List's metadata and its membership statistics.
+
+### Fields
+
+<ResponseField name="id" type="string" required>
+  The unique identifier for the List.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  The display name of the List.
+</ResponseField>
+
+<ResponseField name="owner_id" type="string">
+  The User ID of the account that created and owns the List. Expand with `expansions=owner_id` to include the full User object.
+</ResponseField>
+
+<ResponseField name="created_at" type="string (ISO 8601)">
+  The UTC date and time when the List was created.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  A brief description of the List's purpose or theme, as set by the owner.
+</ResponseField>
+
+<ResponseField name="private" type="boolean">
+  When `true`, the List is only visible to the owner. When `false`, the List is publicly discoverable.
+</ResponseField>
+
+<ResponseField name="follower_count" type="integer">
+  The number of users who follow the List (i.e., subscribe to its timeline).
+</ResponseField>
+
+<ResponseField name="member_count" type="integer">
+  The total number of X accounts that are members of the List.
+</ResponseField>

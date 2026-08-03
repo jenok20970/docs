@@ -1,0 +1,111 @@
+---
+title: "X API Access Tiers: Free, Basic, Pro, and Enterprise"
+sidebarTitle: "Access Levels"
+description: "Compare X API v2 access tiers — Free, Basic, Pro, and Enterprise — and find the right plan for your app's read/write volume and feature requirements."
+---
+
+The X Developer Platform uses a tiered access model so that individual developers, small teams, and large enterprises can each get the level of throughput and functionality they need. This page breaks down what each tier includes and helps you choose the right one for your project.
+
+---
+
+## The four access tiers
+
+### Free
+
+The Free tier is designed for developers who are learning the X API, prototyping a new idea, or building a low-volume personal project. You get access to a core subset of endpoints with modest rate limits — enough to explore the platform and ship something small without spending a dollar.
+
+### Basic
+
+Basic is suitable for indie developers and small applications that are live in production. It increases your monthly read and write caps and unlocks a broader set of endpoints compared to the Free tier, at a predictable flat monthly cost.
+
+### Pro
+
+Pro is built for production applications that need higher throughput, advanced search capabilities, and real-time streaming. Full-archive search and the filtered stream endpoint are only available on Pro and above, making this tier essential for data-intensive apps and research tools.
+
+### Enterprise
+
+Enterprise offers fully customized volume, dedicated support, and a service-level agreement (SLA). It's the right choice for large platforms, media organizations, and enterprise software products that depend on the X API for business-critical functionality.
+
+---
+
+## Tier comparison
+
+| Feature | Free | Basic | Pro | Enterprise |
+|---|---|---|---|---|
+| **Price** | $0 | $100 / month | $5,000 / month | Contact sales |
+| **Monthly tweet reads** | 500,000 | 1,000,000 | 10,000,000 | Custom |
+| **Monthly tweet writes** | 1,500 | 3,000 | 300,000 | Custom |
+| **Recent search** | ✅ (limited) | ✅ | ✅ | ✅ |
+| **Full-archive search** | ❌ | ❌ | ✅ | ✅ |
+| **Filtered stream** | ❌ | ❌ | ✅ | ✅ |
+| **Sampled stream (1%)** | ❌ | ❌ | ✅ | ✅ |
+| **Users endpoints** | Read only | Read + Write | Read + Write | Read + Write |
+| **Direct Messages** | ❌ | ✅ | ✅ | ✅ |
+| **Spaces endpoints** | ❌ | ✅ | ✅ | ✅ |
+| **Lists endpoints** | ❌ | ✅ | ✅ | ✅ |
+| **Dedicated support** | Community forums | Community forums | Email support | Named support team + SLA |
+| **Best for** | Prototyping, learning | Small live apps | Data-heavy and real-time apps | Large-scale platforms |
+
+<Note>
+  Rate limits are applied per **15-minute window** at both the app level and the user level. Hitting a rate limit returns an HTTP `429 Too Many Requests` response with a `x-rate-limit-reset` header indicating when the window resets. Always build retry logic with exponential backoff into your application.
+</Note>
+
+---
+
+## Endpoint availability by tier
+
+Not all endpoints are available on every tier. Here is a summary of the most commonly used endpoints and which tiers can access them:
+
+| Endpoint | Free | Basic | Pro | Enterprise |
+|---|---|---|---|---|
+| `GET /2/tweets/:id` | ✅ | ✅ | ✅ | ✅ |
+| `GET /2/tweets/search/recent` | ✅ | ✅ | ✅ | ✅ |
+| `GET /2/tweets/search/all` (full archive) | ❌ | ❌ | ✅ | ✅ |
+| `POST /2/tweets` (create tweet) | ✅ | ✅ | ✅ | ✅ |
+| `DELETE /2/tweets/:id` (delete tweet) | ✅ | ✅ | ✅ | ✅ |
+| `GET /2/tweets/sample/stream` | ❌ | ❌ | ✅ | ✅ |
+| `GET /2/tweets/search/stream` (filtered) | ❌ | ❌ | ✅ | ✅ |
+| `GET /2/users/:id` | ✅ | ✅ | ✅ | ✅ |
+| `GET /2/users/by/username/:username` | ✅ | ✅ | ✅ | ✅ |
+| `GET /2/users/:id/followers` | ❌ | ✅ | ✅ | ✅ |
+| `POST /2/dm_conversations` | ❌ | ✅ | ✅ | ✅ |
+| `GET /2/spaces/:id` | ❌ | ✅ | ✅ | ✅ |
+| `GET /2/lists/:id/tweets` | ❌ | ✅ | ✅ | ✅ |
+
+---
+
+## How to upgrade your access level
+
+<Steps>
+  <Step title="Open the Developer Portal">
+    Go to [developer.x.com/portal](https://developer.x.com/portal) and sign in.
+  </Step>
+  <Step title="Navigate to your subscription">
+    In the left sidebar, click **Products** → **X API** to view your current plan and available upgrade options.
+  </Step>
+  <Step title="Select your new tier">
+    Click **Subscribe** or **Upgrade** next to the tier you want. For Basic and Pro, you'll enter payment details. Upgrades take effect immediately.
+  </Step>
+  <Step title="For Enterprise">
+    Click **Contact sales** on the Enterprise card. A member of the X business development team will reach out to discuss your requirements, data volume, and pricing.
+  </Step>
+</Steps>
+
+<Note>
+  **Academic and research access:** Researchers at accredited academic institutions may qualify for elevated access to the full-archive search endpoint at no cost under the **Academic Research** product track. To apply, submit an application from the Developer Portal describing your research project, your institutional affiliation, and your intended data use. Approved researchers receive Pro-level access to `GET /2/tweets/search/all` without the standard Pro subscription fee.
+</Note>
+
+---
+
+## Choosing the right tier
+
+Use these guidelines to pick your starting point:
+
+- **Just learning the API or building a toy project?** Start on Free. You can always upgrade later.
+- **Shipping a live app with real users?** Basic covers most standard use cases at a manageable cost.
+- **Need real-time data or historical tweet data?** You'll need Pro for filtered streaming and full-archive search.
+- **Building infrastructure that X data depends on at scale?** Talk to the Enterprise team about volume, SLAs, and dedicated support.
+
+<Tip>
+  You can downgrade your tier at any time from the Developer Portal, effective at the start of your next billing cycle. Downgrading does not delete your apps or invalidate your credentials — it simply applies the lower tier's rate limits and endpoint restrictions.
+</Tip>

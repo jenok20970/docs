@@ -1,0 +1,417 @@
+---
+title: "Post, Reply, Quote, and Delete Tweets with X API v2"
+sidebarTitle: "Post Tweets"
+description: "Create, reply to, quote, and delete tweets programmatically with the X API v2 using OAuth 2.0 or OAuth 1.0a user-context authentication."
+---
+
+The X API v2 lets you post tweets, reply to existing tweets, quote tweets, attach media, and delete tweets you own — all through a straightforward REST interface.
+
+## Posting flow
+
+<Steps>
+  <Step title="Authenticate with OAuth 2.0 or OAuth 1.0a">
+    Obtain a user-context access token with the `tweet.write` and `users.read` scopes via the Authorization Code with PKCE flow, or supply your OAuth 1.0a Access Token and Secret for single-account apps.
+  </Step>
+  <Step title="Build your request payload">
+    Construct a JSON body with at minimum the `text` field (or `media.media_ids` if posting media without text). Add optional fields such as `reply`, `quote_tweet_id`, or `poll` as needed.
+  </Step>
+  <Step title="POST to /2/tweets">
+    Send the request. On success you receive a `201 Created` response with the new tweet's `id` and `text`.
+  </Step>
+  <Step title="Handle errors and rate limits">
+    Check for `403` (permissions), `401` (auth), `429` (rate limit), and `400` (bad request). Log the error body — it contains actionable detail codes.
+  </Step>
+</Steps>
+
+## Requirements
+
+<CardGroup cols={2}>
+  <Card title="OAuth 2.0 (PKCE)" icon="lock">
+    Use the Authorization Code with PKCE flow to get a user-context token with the `tweet.write` and `users.read` scopes.
+  </Card>
+  <Card title="OAuth 1.0a" icon="key">
+    Use your Access Token and Access Secret from the developer portal. Suitable for server-side apps where the user is a single account you own.
+  </Card>
+</CardGroup>
+
+Before posting tweets, make sure you have:
+
+- **OAuth 2.0** with the `tweet.write` and `users.read` scopes, **or** valid **OAuth 1.0a** credentials (Access Token + Secret).
+- An access tier that includes **write permissions** (Basic, Pro, or Enterprise). The Free tier has limited write access.
+- Your app approved for the intended use case if you are posting on behalf of other users.
+
+<Warning>
+  Each access tier enforces a **monthly tweet cap** across your app. Exceeding the cap blocks all further tweet creation until the next calendar month resets your quota. Monitor your usage in the [developer portal](https://developer.x.com/en/portal/dashboard) to avoid unexpected interruptions.
+
+  | Tier | Monthly tweet cap |
+  |---|---|
+  | Free | 1,500 posts (app-level) |
+  | Basic | 3,000 posts (app-level) |
+  | Pro | 300,000 posts (app-level) |
+  | Enterprise | Custom |
+</Warning>
+
+## POST /2/tweets
+
+**Endpoint:** `POST https://api.twitter.com/2/tweets`
+
+**Authentication:** OAuth 2.0 (user context) or OAuth 1.0a
+
+### Request body parameters
+
+<ParamField body="text" type="string">
+  The text content of the tweet. Maximum 280 characters. Required unless `media.media_ids` is provided.
+</ParamField>
+
+<ParamField body="reply.in_reply_to_tweet_id" type="string">
+  The ID of the tweet you are replying to. When set, your tweet is threaded as a reply.
+</ParamField>
+
+<ParamField body="reply.exclude_reply_user_ids" type="array">
+  Array of user IDs to exclude from the reply mention. Useful for trimming long `@mention` chains.
+</ParamField>
+
+<ParamField body="quote_tweet_id" type="string">
+  The ID of the tweet to quote. Creates a quote tweet.
+</ParamField>
+
+<ParamField body="media.media_ids" type="array">
+  Array of media IDs to attach (up to 4 images, 1 GIF, or 1 video). Upload media first using the **v1.1 media upload endpoint** (`POST https://upload.twitter.com/1.1/media/upload.json`) to obtain media IDs.
+</ParamField>
+
+<ParamField body="media.tagged_user_ids" type="array">
+  Array of user IDs to tag in the attached media.
+</ParamField>
+
+<ParamField body="poll" type="object">
+  Add a poll to the tweet. Requires `poll.options` (array of 2–4 option strings) and `poll.duration_minutes` (5–10080).
+</ParamField>
+
+<ParamField body="reply_settings" type="string">
+  Control who can reply. One of `mentionedUsers`, `subscribers`, or `following`. Defaults to everyone if omitted.
+</ParamField>
+
+<ParamField body="geo.place_id" type="string">
+  A place ID from the X geo API to attach a location to the tweet.
+</ParamField>
+
+<ParamField body="direct_message_deep_link" type="string">
+  A deep link that opens a DM conversation when tapped on mobile.
+</ParamField>
+
+<ParamField body="for_super_followers_only" type="boolean">
+  When `true`, the tweet is visible only to your Super Followers. Defaults to `false`.
+</ParamField>
+
+### Response fields
+
+<ResponseField name="data.id" type="string">
+  The unique identifier of the newly created tweet.
+</ResponseField>
+
+<ResponseField name="data.text" type="string">
+  The text content of the created tweet as stored by X.
+</ResponseField>
+
+## Post a simple tweet
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/tweets" \
+  -H "Authorization: Bearer $OAUTH2_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello from the X API v2! #BuildOnX"}'
+```
+
+```python Python
+import requests
+import os
+
+# OAuth 2.0 User Context token (obtained via OAuth 2.0 PKCE flow)
+OAUTH2_TOKEN = os.environ["OAUTH2_TOKEN"]
+
+def post_tweet(text: str) -> dict:
+    url = "https://api.twitter.com/2/tweets"
+    headers = {
+        "Authorization": f"Bearer {OAUTH2_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {"text": text}
+
+    response = requests.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+    return response.json()
+
+
+result = post_tweet("Hello from the X API v2! #BuildOnX")
+print(f"Posted tweet ID: {result['data']['id']}")
+```
+
+```javascript JavaScript
+const OAUTH2_TOKEN = process.env.OAUTH2_TOKEN;
+
+async function postTweet(text) {
+  const response = await fetch("https://api.twitter.com/2/tweets", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OAUTH2_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`API error ${response.status}: ${JSON.stringify(error)}`);
+  }
+
+  return response.json();
+}
+
+postTweet("Hello from the X API v2! #BuildOnX")
+  .then((data) => console.log("Posted tweet ID:", data.data.id))
+  .catch(console.error);
+```
+</CodeGroup>
+
+## Post a reply
+
+To reply to a tweet, include `reply.in_reply_to_tweet_id` in the request body.
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.twitter.com/2/tweets" \
+  -H "Authorization: Bearer $OAUTH2_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Thanks for the mention! Great question.",
+    "reply": {
+      "in_reply_to_tweet_id": "1780000000000000001"
+    }
+  }'
+```
+
+```python Python
+def post_reply(text: str, in_reply_to_tweet_id: str) -> dict:
+    url = "https://api.twitter.com/2/tweets"
+    headers = {
+        "Authorization": f"Bearer {OAUTH2_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "text": text,
+        "reply": {"in_reply_to_tweet_id": in_reply_to_tweet_id},
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+    return response.json()
+
+
+result = post_reply("Thanks for the mention! Great question.", "1780000000000000001")
+print(f"Reply posted with ID: {result['data']['id']}")
+```
+
+```javascript JavaScript
+async function postReply(text, inReplyToTweetId) {
+  const response = await fetch("https://api.twitter.com/2/tweets", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OAUTH2_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text,
+      reply: { in_reply_to_tweet_id: inReplyToTweetId },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`API error ${response.status}: ${JSON.stringify(error)}`);
+  }
+
+  return response.json();
+}
+
+postReply("Thanks for the mention! Great question.", "1780000000000000001")
+  .then((data) => console.log("Reply ID:", data.data.id))
+  .catch(console.error);
+```
+</CodeGroup>
+
+## Post a tweet with media
+
+Media must be uploaded separately using the **v1.1 media upload endpoint** before you can attach it to a tweet. The upload returns a `media_id_string` that you pass in `media.media_ids`.
+
+<CodeGroup>
+```bash cURL
+# Step 1 — Upload media (v1.1 endpoint, OAuth 1.0a required)
+curl -X POST "https://upload.twitter.com/1.1/media/upload.json" \
+  -H "Authorization: OAuth ..." \
+  -F "media=@/path/to/image.png"
+
+# Step 2 — Post tweet with the returned media_id_string
+curl -X POST "https://api.twitter.com/2/tweets" \
+  -H "Authorization: Bearer $OAUTH2_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Check out this chart! #DataViz",
+    "media": {
+      "media_ids": ["1780000000000000099"]
+    }
+  }'
+```
+
+```python Python
+import requests
+from requests_oauthlib import OAuth1
+
+CONSUMER_KEY = os.environ["CONSUMER_KEY"]
+CONSUMER_SECRET = os.environ["CONSUMER_SECRET"]
+ACCESS_TOKEN = os.environ["ACCESS_TOKEN"]
+ACCESS_SECRET = os.environ["ACCESS_SECRET"]
+
+def upload_media(image_path: str) -> str:
+    """Upload media using v1.1 endpoint (requires OAuth 1.0a)."""
+    auth = OAuth1(CONSUMER_KEY, CONSUMER_SECRET, ACCESS_TOKEN, ACCESS_SECRET)
+    with open(image_path, "rb") as f:
+        response = requests.post(
+            "https://upload.twitter.com/1.1/media/upload.json",
+            auth=auth,
+            files={"media": f},
+        )
+    response.raise_for_status()
+    return response.json()["media_id_string"]
+
+
+def post_tweet_with_media(text: str, image_path: str) -> dict:
+    media_id = upload_media(image_path)
+    url = "https://api.twitter.com/2/tweets"
+    headers = {
+        "Authorization": f"Bearer {OAUTH2_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {"text": text, "media": {"media_ids": [media_id]}}
+    response = requests.post(url, headers=headers, json=payload)
+    response.raise_for_status()
+    return response.json()
+
+
+result = post_tweet_with_media("Check out this chart! #DataViz", "chart.png")
+print(f"Tweet with media posted: {result['data']['id']}")
+```
+
+```javascript JavaScript
+// Note: media upload requires OAuth 1.0a — use a library such as `oauth-1.0a`
+// This example shows the tweet creation step after media_id is obtained.
+
+async function postTweetWithMedia(text, mediaId) {
+  const response = await fetch("https://api.twitter.com/2/tweets", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OAUTH2_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      text,
+      media: { media_ids: [mediaId] },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`API error ${response.status}: ${JSON.stringify(error)}`);
+  }
+
+  return response.json();
+}
+
+// Assume mediaId was obtained from the v1.1 upload endpoint
+postTweetWithMedia("Check out this chart! #DataViz", "1780000000000000099")
+  .then((data) => console.log("Tweet ID:", data.data.id))
+  .catch(console.error);
+```
+</CodeGroup>
+
+<Note>
+  Media upload uses the **v1.1 endpoint** (`https://upload.twitter.com/1.1/media/upload.json`) and requires **OAuth 1.0a** authentication. A v2-native media upload endpoint is not yet available. Your app must have both OAuth 1.0a credentials and the v2 OAuth 2.0 token ready when posting tweets with media.
+</Note>
+
+## DELETE /2/tweets/:id
+
+Delete a tweet that your authenticated user owns. You cannot delete tweets posted by other accounts.
+
+**Endpoint:** `DELETE https://api.twitter.com/2/tweets/:id`
+
+**Authentication:** OAuth 2.0 (user context) or OAuth 1.0a
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE "https://api.twitter.com/2/tweets/1780000000000000001" \
+  -H "Authorization: Bearer $OAUTH2_TOKEN"
+```
+
+```python Python
+def delete_tweet(tweet_id: str) -> bool:
+    url = f"https://api.twitter.com/2/tweets/{tweet_id}"
+    headers = {"Authorization": f"Bearer {OAUTH2_TOKEN}"}
+
+    response = requests.delete(url, headers=headers)
+    response.raise_for_status()
+    data = response.json()
+    return data.get("data", {}).get("deleted", False)
+
+
+deleted = delete_tweet("1780000000000000001")
+print("Tweet deleted:", deleted)
+```
+
+```javascript JavaScript
+async function deleteTweet(tweetId) {
+  const response = await fetch(
+    `https://api.twitter.com/2/tweets/${tweetId}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${OAUTH2_TOKEN}` },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`API error ${response.status}: ${JSON.stringify(error)}`);
+  }
+
+  const data = await response.json();
+  return data.data.deleted;
+}
+
+deleteTweet("1780000000000000001")
+  .then((deleted) => console.log("Tweet deleted:", deleted))
+  .catch(console.error);
+```
+</CodeGroup>
+
+A successful delete returns:
+
+```json
+{
+  "data": {
+    "deleted": true
+  }
+}
+```
+
+<Tip>
+  When building a bot or automation, always include a human-readable description of your app's purpose in the tweet text or account bio. X's automation rules require transparent disclosure of automated posting behavior.
+</Tip>
+
+## Error reference
+
+| HTTP Status | Error code | Meaning |
+|---|---|---|
+| `401 Unauthorized` | `32` | Missing or invalid authentication credentials. Check your token and OAuth signature. |
+| `403 Forbidden` | `87` | Insufficient permissions. Ensure your app has `tweet.write` scope and write-enabled access. |
+| `403 Forbidden` | `226` | Tweet flagged as automated spam by X. Review your posting patterns. |
+| `429 Too Many Requests` | — | Rate limit exceeded. Check the `x-rate-limit-reset` response header for the reset time. |
+| `400 Bad Request` | `214` | Tweet text is empty or exceeds 280 characters. |

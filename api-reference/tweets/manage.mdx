@@ -1,0 +1,229 @@
+---
+title: "POST /2/tweets — Create and Delete Tweets | X API v2"
+sidebarTitle: "Manage Tweets"
+description: "Create new tweets, post replies, quote tweets, and attach media. Delete your own tweets. Requires OAuth 2.0 with tweet.write scope."
+---
+
+The tweet management endpoints let you create new tweets on behalf of an authenticated user and delete tweets the user has previously posted. You can compose plain-text tweets, replies to other tweets, quote tweets, tweets with attached media, tweets with polls, and tweets restricted to super followers — all through a single `POST /2/tweets` endpoint.
+
+## Authentication
+
+<Note>
+  All write operations require a **user context**. You must authenticate with **OAuth 2.0 Authorization Code Flow with PKCE** (scopes: `tweet.write` and `users.read`) or **OAuth 1.0a** (access token with write permissions). App-only Bearer Token authentication is **not** supported for creating or deleting tweets.
+</Note>
+
+---
+
+## POST /2/tweets
+
+Create a new tweet on behalf of the authenticated user.
+
+```
+POST https://api.twitter.com/2/tweets
+```
+
+Send the request body as `application/json`.
+
+### Request Body Fields
+
+<ParamField body="text" type="string">
+  The text of the tweet. Maximum **280 characters**. Required unless you are posting a
+  media-only tweet (i.e., `media.media_ids` is provided without text).
+</ParamField>
+
+<ParamField body="direct_message_deep_link" type="string">
+  A URL that opens a Direct Message conversation when tapped. Use the DM compose URL format:
+  `https://twitter.com/messages/compose?recipient_id={user_id}`.
+</ParamField>
+
+<ParamField body="for_super_followers_only" type="boolean">
+  When `true`, restricts the tweet to users who subscribe as super followers of the
+  authenticated user. Defaults to `false`.
+</ParamField>
+
+<ParamField body="geo.place_id" type="string">
+  The ID of a place to attach as the tweet's location. Retrieve valid place IDs using the
+  geo search endpoint.
+</ParamField>
+
+<ParamField body="media.media_ids" type="array of strings">
+  An array of media IDs to attach to the tweet. Obtain media IDs by uploading assets via the
+  v1.1 media upload endpoint before calling this endpoint. Maximum 4 images, 1 GIF, or 1 video.
+</ParamField>
+
+<ParamField body="media.tagged_user_ids" type="array of strings">
+  An array of user IDs to tag in the attached media. Requires `media.media_ids` to be set.
+  Maximum 10 tagged users.
+</ParamField>
+
+<ParamField body="poll.duration_minutes" type="integer">
+  The duration of the poll in minutes. Minimum `5` (5 minutes), maximum `10080` (7 days).
+  Requires `poll.options` to be set. Cannot be used alongside `media.media_ids`.
+</ParamField>
+
+<ParamField body="poll.options" type="array of strings">
+  An array of poll choice labels. Must contain between **2 and 4** items. Each label can be
+  up to 25 characters. Requires `poll.duration_minutes` to be set.
+</ParamField>
+
+<ParamField body="quote_tweet_id" type="string">
+  The ID of the tweet you want to quote. The quoted tweet is displayed inline below your
+  tweet text.
+</ParamField>
+
+<ParamField body="reply.in_reply_to_tweet_id" type="string">
+  The ID of the tweet you are replying to. The reply is threaded under the specified tweet.
+</ParamField>
+
+<ParamField body="reply.exclude_reply_user_ids" type="array of strings">
+  An array of user IDs to remove from the @-mention list in the reply. The author of the
+  tweet you are replying to cannot be excluded.
+</ParamField>
+
+<ParamField body="reply_settings" type="string">
+  Controls who can reply to this tweet. Options:
+  - `mentionedUsers` — only users mentioned in the tweet can reply
+  - `followers` — only followers of the authenticated user can reply
+
+  Omit this field to allow replies from everyone (default).
+</ParamField>
+
+### Example Requests
+
+<CodeGroup>
+
+```bash cURL — Simple Tweet
+curl -X POST "https://api.twitter.com/2/tweets" \
+  -H "Authorization: Bearer $USER_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hello from the X API v2! 🚀"
+  }'
+```
+
+```bash cURL — Reply to a Tweet
+curl -X POST "https://api.twitter.com/2/tweets" \
+  -H "Authorization: Bearer $USER_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Great point — here is some additional context.",
+    "reply": {
+      "in_reply_to_tweet_id": "1460323737035677698"
+    }
+  }'
+```
+
+</CodeGroup>
+
+<CodeGroup>
+
+```python Python
+import requests
+
+url = "https://api.twitter.com/2/tweets"
+headers = {
+    "Authorization": f"Bearer {USER_ACCESS_TOKEN}",
+    "Content-Type": "application/json"
+}
+payload = {
+    "text": "Hello from the X API v2! 🚀"
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.twitter.com/2/tweets", {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${USER_ACCESS_TOKEN}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    text: "Hello from the X API v2! 🚀",
+  }),
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "id": "1770000000000000001",
+    "text": "Hello from the X API v2! 🚀",
+    "edit_history_tweet_ids": ["1770000000000000001"]
+  }
+}
+```
+
+---
+
+## DELETE /2/tweets/:id
+
+Delete a tweet. You can only delete tweets posted by the authenticated user.
+
+```
+DELETE https://api.twitter.com/2/tweets/:id
+```
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The ID of the tweet to delete. The authenticated user must be the author of this tweet.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE "https://api.twitter.com/2/tweets/1770000000000000001" \
+  -H "Authorization: Bearer $USER_ACCESS_TOKEN"
+```
+
+</CodeGroup>
+
+### Example Response
+
+```json
+{
+  "data": {
+    "deleted": true
+  }
+}
+```
+
+---
+
+## Monthly Tweet Caps
+
+<Warning>
+  Creating tweets counts against your plan's monthly **write cap**, which resets at the start
+  of each calendar month. Exceeding your cap will result in `403 Forbidden` errors until the
+  cap resets.
+
+  | Plan | Monthly Tweet Cap |
+  |---|---|
+  | Free | 1,500 tweets/month |
+  | Basic | 3,000 tweets/month |
+  | Pro | 300,000 tweets/month |
+  | Enterprise | Custom |
+</Warning>
+
+---
+
+## Error Codes
+
+| HTTP Status | Description |
+|---|---|
+| `400 Bad Request` | The request body is missing required fields, exceeds character limits, or contains invalid field combinations (e.g., poll and media in the same tweet). |
+| `401 Unauthorized` | The access token is missing, invalid, or expired. Ensure you are using a valid user-context token, not a Bearer Token. |
+| `403 Forbidden` | The authenticated user does not have permission to perform this action. Common causes: insufficient OAuth scopes (`tweet.write` missing), monthly tweet cap exceeded, or attempting to delete another user's tweet. |
+| `404 Not Found` | The tweet specified in `reply.in_reply_to_tweet_id` or `quote_tweet_id` does not exist or is not accessible. |
