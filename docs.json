@@ -123,5 +123,10 @@
     "socials": {
       "x": "https://x.com/XDevelopers"
     }
+  },
+  "errors": {
+    "404": {
+      "redirect": true
+    }
   }
 }
