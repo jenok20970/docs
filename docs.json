@@ -3,7 +3,7 @@
   "name": "X Developer Platform 2",
   "theme": "mint",
   "colors": {
-    "primary": "#dedcdc",
+    "primary": "#2d00f6",
     "light": "#0f0f0f",
     "dark": "#ffffff"
   },
@@ -143,6 +143,11 @@
   "errors": {
     "404": {
       "redirect": true
+    }
+  },
+  "background": {
+    "color": {
+      "dark": "#000000"
     }
   }
 }

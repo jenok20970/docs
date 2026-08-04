@@ -1,28 +1,30 @@
 ---
-title: "X API v2 Quickstart: From Credentials to First API Call"
+title: "X API v2 Quickstart: From Credentials to First API Call 7878"
 sidebarTitle: "Quickstart"
 description: "Set up developer access, grab your credentials, and make your first X API v2 call — search recent tweets with curl, Python, or JavaScript."
 ---
 
 This guide walks you through everything you need to go from zero to your first successful API response. By the end, you'll have a working credential set and a real tweet in your terminal.
 
+test123
+
 <Steps>
   <Step title="Apply for developer access">
     Go to [developer.x.com](https://developer.x.com) and sign in with your X account. Click **Sign up** on the developer portal landing page and complete the application.
 
     You'll be asked to:
+
     - Describe what you intend to build
     - Confirm whether your use case involves government or political content
     - Agree to the [Developer Agreement and Policy](https://developer.x.com/en/developer-terms/agreement-and-policy)
 
     Most applications for the **Free** tier are approved instantly. Higher tiers may require additional review.
   </Step>
-
   <Step title="Create a project and app, then get your Bearer Token">
     Once approved, open the [Developer Portal](https://developer.x.com/portal/dashboard).
 
-    1. Click **+ Create Project**, give it a name and description, and select a use-case category.
-    2. Inside your new project, click **+ Add App** and name your app.
+    1. Click **\+ Create Project**, give it a name and description, and select a use-case category.
+    2. Inside your new project, click **\+ Add App** and name your app.
     3. On the app's **Keys and tokens** page, copy the following values and store them securely:
        - **API Key** (also called Consumer Key)
        - **API Key Secret** (also called Consumer Secret)
@@ -34,7 +36,6 @@ This guide walks you through everything you need to go from zero to your first s
       Never commit API keys or secrets to version control. Use environment variables or a secrets manager to keep credentials out of your codebase.
     </Warning>
   </Step>
-
   <Step title="Make your first API call — search recent tweets">
     Use the Bearer Token to search for recent tweets. The example below searches for tweets posted by `@XDevelopers` and returns the five most recent.
 
@@ -49,7 +50,6 @@ This guide walks you through everything you need to go from zero to your first s
       On the **Free** tier, the recent search endpoint is available but rate-limited to 1 request per 15 minutes (app-level). The **Basic** tier raises this to 15 requests per 15 minutes. Plan your polling strategy accordingly.
     </Note>
   </Step>
-
   <Step title="Explore the response JSON">
     A successful response looks like this. The `data` array contains tweet objects; each object includes at minimum an `id`, `text`, and `edit_history_tweet_ids` field.
 
@@ -87,7 +87,7 @@ This guide walks you through everything you need to go from zero to your first s
     **Key fields to know:**
 
     | Field | Description |
-    |---|---|
+    | --- | --- |
     | `data[].id` | The unique ID of the tweet |
     | `data[].text` | The full text content of the tweet |
     | `data[].author_id` | The user ID of the tweet's author |
@@ -176,7 +176,7 @@ for (const tweet of data.data ?? []) {
 
 You've made your first X API call. Here's where to go from here:
 
-- **[Authentication overview](/authentication/overview)** — Learn how to authenticate on behalf of a user with OAuth 2.0 PKCE so your app can post tweets, follow accounts, and more.
-- **[Access Levels](/getting-started/access-levels)** — Understand the rate limits and monthly caps for your tier and plan around them.
-- **[SDKs & Tools](/tools/sdks)** — Speed up development with the official Python or TypeScript SDK instead of raw HTTP calls.
-- **[Search tweets guide](/guides/search-tweets)** — Go deep on query syntax to build precise, high-signal search filters.
+- [**Authentication overview**](/authentication/overview) — Learn how to authenticate on behalf of a user with OAuth 2.0 PKCE so your app can post tweets, follow accounts, and more.
+- [**Access Levels**](/getting-started/access-levels) — Understand the rate limits and monthly caps for your tier and plan around them.
+- [**SDKs & Tools**](/tools/sdks) — Speed up development with the official Python or TypeScript SDK instead of raw HTTP calls.
+- [**Search tweets guide**](/guides/search-tweets) — Go deep on query syntax to build precise, high-signal search filters.
