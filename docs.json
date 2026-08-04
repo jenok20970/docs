@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "X Developer Platform",
-  "theme": "luma",
+  "theme": "mint",
   "colors": {
     "primary": "#dedcdc",
     "light": "#0f0f0f",
