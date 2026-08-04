@@ -3,7 +3,7 @@
   "name": "X Developer Platform",
   "theme": "luma",
   "colors": {
-    "primary": "#7c7c7c",
+    "primary": "#dedcdc",
     "light": "#0f0f0f",
     "dark": "#ffffff"
   },
@@ -111,6 +111,10 @@
       {
         "label": "Support",
         "href": "https://developer.x.com/en/support"
+      },
+      {
+        "href": "https://google.com",
+        "label": "Test"
       }
     ],
     "primary": {
