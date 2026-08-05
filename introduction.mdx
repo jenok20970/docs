@@ -29,6 +29,18 @@ The API is organized into the following major endpoint categories:
 
 Every response uses a shared data model. You request exactly the fields you need — such as `tweet.fields`, `user.fields`, and `expansions` — so you don't over-fetch data.
 
+```mermaid placement="top-left" actions={false}
+erDiagram
+          CUSTOMER }|..|{ DELIVERY-ADDRESS : has
+          CUSTOMER ||--o{ ORDER : places
+          CUSTOMER ||--o{ INVOICE : "liable for"
+          DELIVERY-ADDRESS ||--o{ ORDER : receives
+          INVOICE ||--|{ ORDER : covers
+          ORDER ||--|{ ORDER-ITEM : includes
+          PRODUCT-CATEGORY ||--|{ PRODUCT : contains
+          PRODUCT ||--o{ ORDER-ITEM : "ordered in"
+```
+
 ---
 
 ## Access tiers
@@ -64,7 +76,7 @@ The X API v2 is flexible enough to power a wide variety of products and workflow
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Quickstart" icon="rocket" href="/quickstart">
+  <Card title="Quickstart" icon="a" href="/quickstart">
     Make your first API call in under five minutes with a step-by-step walkthrough.
   </Card>
 
