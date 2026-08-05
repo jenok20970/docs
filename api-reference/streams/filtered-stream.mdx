@@ -39,12 +39,13 @@ Opens a persistent HTTP connection to the filtered stream. The server sends matc
 </ParamField>
 
 <ParamField query="backfill_minutes" type="integer">
-  **Pro+ only.** Number of minutes of missed Tweets to replay after reconnecting. Accepted values: `1`–`5`. Requires the `backfill` feature to be enabled on your developer account.
+  **Pro\+ only.** Number of minutes of missed Tweets to replay after reconnecting. Accepted values: `1`–`5`. Requires the `backfill` feature to be enabled on your developer account
 </ParamField>
 
 ### Connect to the Stream
 
 <CodeGroup>
+
 ```bash cURL
 curl -X GET "https://api.twitter.com/2/tweets/search/stream?tweet.fields=id,text,created_at,author_id&expansions=author_id&user.fields=name,username" \
   -H "Authorization: Bearer $BEARER_TOKEN"
@@ -109,6 +110,7 @@ const req = https.request(options, (res) => {
 req.on("error", (err) => console.error(err));
 req.end();
 ```
+
 </CodeGroup>
 
 ### Stream Response Format
@@ -151,6 +153,7 @@ Rules determine which Tweets your stream receives. You can have multiple active 
 
 <Note>
   **Rule limits by access tier:**
+
   - **Basic:** 25 concurrent rules
   - **Pro:** 1,000 concurrent rules
 
@@ -164,6 +167,7 @@ Returns all currently active rules for your stream.
 #### Example Request
 
 <CodeGroup>
+
 ```bash cURL
 curl -X GET "https://api.twitter.com/2/tweets/search/stream/rules" \
   -H "Authorization: Bearer $BEARER_TOKEN"
@@ -180,6 +184,7 @@ headers = {"Authorization": f"Bearer {bearer_token}"}
 response = requests.get(url, headers=headers)
 print(response.json())
 ```
+
 </CodeGroup>
 
 #### Example Response
@@ -220,6 +225,7 @@ Adds one or more new rules to your filtered stream. Rules take effect immediatel
     <ParamField body="value" type="string" required>
       The rule operator string. Uses the same syntax as the full-archive search query language. For example: `"X API" has:media lang:en -is:retweet`.
     </ParamField>
+
     <ParamField body="tag" type="string">
       An optional human-readable label for the rule. Tags appear in `matching_rules` when a Tweet is delivered. Maximum 128 characters.
     </ParamField>
@@ -229,6 +235,7 @@ Adds one or more new rules to your filtered stream. Rules take effect immediatel
 #### Example Request
 
 <CodeGroup>
+
 ```bash cURL
 curl -X POST "https://api.twitter.com/2/tweets/search/stream/rules" \
   -H "Authorization: Bearer $BEARER_TOKEN" \
@@ -273,6 +280,7 @@ headers = {
 response = requests.post(url, json=payload, headers=headers)
 print(response.json())
 ```
+
 </CodeGroup>
 
 #### Example Response
@@ -324,6 +332,7 @@ Deletes one or more existing rules by their IDs. Use the same endpoint as adding
 #### Example Request
 
 <CodeGroup>
+
 ```bash cURL
 curl -X POST "https://api.twitter.com/2/tweets/search/stream/rules" \
   -H "Authorization: Bearer $BEARER_TOKEN" \
@@ -354,6 +363,7 @@ headers = {
 response = requests.post(url, json=payload, headers=headers)
 print(response.json())
 ```
+
 </CodeGroup>
 
 #### Example Response
@@ -392,6 +402,7 @@ Network interruptions are normal when maintaining long-lived HTTP connections. I
 </Steps>
 
 <CodeGroup>
+
 ```python Python
 import requests
 import json
@@ -426,6 +437,7 @@ def run_stream():
 
 run_stream()
 ```
+
 </CodeGroup>
 
 ---

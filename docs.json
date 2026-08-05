@@ -149,5 +149,8 @@
     "color": {
       "dark": "#000000"
     }
+  },
+  "api": {
+    "openapi": "petstore.yaml"
   }
 }
