@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "name": "X Developer Platform",
+  "name": "X Developer Platform 2",
   "theme": "luma",
   "colors": {
     "primary": "#7c7c7c",
@@ -103,6 +103,10 @@
             ]
           }
         ]
+      },
+      {
+        "tab": "API Reference 2",
+        "openapi": "petstore.yaml"
       }
     ]
   },
