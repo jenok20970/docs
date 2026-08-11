@@ -123,8 +123,5 @@
     "socials": {
       "x": "https://x.com/XDevelopers"
     }
-  },
-  "api": {
-    "openapi": "swagger.json"
   }
 }
