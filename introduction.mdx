@@ -1,5 +1,5 @@
 ---
-title: "X Developer Platform: APIs, Access Tiers, and Use Cases Fixed"
+title: "X Developer Platform: APIs, Access Tiers, and Use Cases"
 sidebarTitle: "Introduction"
 description: "Discover what the X Developer Platform offers — REST APIs, streams, SDKs, and four access tiers to build apps, bots, dashboards, and research tools."
 ---
@@ -28,18 +28,6 @@ The API is organized into the following major endpoint categories:
 | **Streams** | Connect to a real-time filtered stream (rule-based) or a 1% sampled stream of all public tweets. |
 
 Every response uses a shared data model. You request exactly the fields you need — such as `tweet.fields`, `user.fields`, and `expansions` — so you don't over-fetch data.
-
-```mermaid placement="top-left" actions={false}
-erDiagram
-          CUSTOMER }|..|{ DELIVERY-ADDRESS : has
-          CUSTOMER ||--o{ ORDER : places
-          CUSTOMER ||--o{ INVOICE : "liable for"
-          DELIVERY-ADDRESS ||--o{ ORDER : receives
-          INVOICE ||--|{ ORDER : covers
-          ORDER ||--|{ ORDER-ITEM : includes
-          PRODUCT-CATEGORY ||--|{ PRODUCT : contains
-          PRODUCT ||--o{ ORDER-ITEM : "ordered in"
-```
 
 ---
 
@@ -76,7 +64,7 @@ The X API v2 is flexible enough to power a wide variety of products and workflow
 ## Next steps
 
 <CardGroup cols={2}>
-  <Card title="Quickstart" icon="a" href="/quickstart">
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
     Make your first API call in under five minutes with a step-by-step walkthrough.
   </Card>
 
